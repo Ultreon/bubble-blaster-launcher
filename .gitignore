@@ -1,0 +1,6 @@
+bin/
+obj/
+srcJava/Runtime/
+src/Runtime/
+.idea/
+!.idea/workspace.xml
