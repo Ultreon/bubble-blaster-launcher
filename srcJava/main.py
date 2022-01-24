@@ -16,10 +16,27 @@ from threading import Thread
 from tkinter import Tk, Frame, Canvas, ttk, Label, PhotoImage
 from typing import Optional, Dict, List, Union, Any, Callable, BinaryIO
 from zipfile import ZipFile
+import getpass
+
+os.getlogin = lambda: getpass.getuser()
+
+if hasattr(sys, "_MEIPASS"):
+    # noinspection PyProtectedMember
+    os.chdir(sys._MEIPASS)
 
 try:
     # noinspection PyUnresolvedReferences
     import win32api
+    import pywintypes
+
+    # print(win32api.GetUserNameEx(0))
+    # print(win32api.GetUserNameEx(1))
+    # print(win32api.GetUserNameEx(2))
+    # print(win32api.GetUserNameEx(3))
+    # print(win32api.GetUserNameEx(4))
+    # print(win32api.GetUserName())
+
+    # os.getlogin = lambda: win32api.GetUserName()
 except ImportError as e:
     pass
 from PIL import Image, ImageTk, ImageDraw, ImageFont
@@ -27,7 +44,8 @@ from PIL import Image, ImageTk, ImageDraw, ImageFont
 DATA_FOLDER = None
 
 if platform.system().lower() == "windows":
-    DATA_FOLDER = f"C:/Users/{os.getlogin()}/AppData/Roaming/.bubbleblaster/"
+    DATA_FOLDER = os.path.join(os.getenv("appdata"), ".bubbleblaster/")
+    # os.getlogin = lambda: win32api.GetUserNameEx(2)
 elif platform.system().lower() == "linux":
     if os.getlogin() == "root":
         DATA_FOLDER = f"/root/.bubbleblaster/"
@@ -730,7 +748,7 @@ class QLauncherWindow(Tk):
         self.minsize(614, 400)
 
         # Makes closing the window, kills the process (or program)
-        self.wm_protocol("WM_DELETE_WINDOW", lambda: os.kill(os.getpid(), 0))
+        # self.wm_protocol("WM_DELETE_WINDOW", lambda: os.kill(os.getpid(), 0))
 
         if not os.path.exists(DATA_FOLDER):
             os.makedirs(DATA_FOLDER)
@@ -794,7 +812,10 @@ class QLauncherWindow(Tk):
 
         # Define profile name
         if globals().__contains__("win32api"):
-            self.profileName = win32api.GetUserNameEx(3)
+            try:
+                self.profileName = win32api.GetUserNameEx(3)
+            except pywintypes.error:
+                self.profileName = os.getlogin()
         else:
             self.profileName = os.getlogin()
 
@@ -1392,22 +1413,22 @@ if __name__ == '__main__':
 
     os.makedirs(os.path.join(DATA_FOLDER, "Logs/Launcher"), exist_ok=True)
     file = open(os.path.join(DATA_FOLDER, time.strftime("Logs/Launcher/Log %Y-%m-%d %H.%M.%S.log")), "w+")
-    sys.stdout = file
-    sys.stderr = file
+    # sys.stdout = file
+    # sys.stderr = file
 
 
-    def func_0(code: int, exit__: Callable[[int], None]):
-        file.close()
-        exit__(code)
-
-    exit_ = sys.exit
-    import builtins
-
-    # noinspection PyShadowingBuiltins
-    def exit(code: int):
-        func_0(code, exit_)
-    builtins.exit = lambda code: func_0(code, exit_)
-    sys.exit = lambda code: func_0(code, exit_)
+    # def func_0(code: int, exit__: Callable[[int], None]):
+    #     file.close()
+    #     exit__(code)
+    #
+    # exit_ = sys.exit
+    # import builtins
+    #
+    # # noinspection PyShadowingBuiltins
+    # def exit(code: int):
+    #     func_0(code, exit_)
+    # builtins.exit = lambda code: func_0(code, exit_)
+    # sys.exit = lambda code: func_0(code, exit_)
 
     try:
         QLauncherWindow().mainloop()

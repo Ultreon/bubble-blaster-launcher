@@ -1,6 +1,12 @@
-bin/
-obj/
-srcJava/Runtime/
-src/Runtime/
+/bin/
+/obj/
+/srcJava/bin/
+/srcJava/obj/
+/srcJava/Runtime/
+/src/Runtime/
 .idea/
 !.idea/workspace.xml
+
+/run/
+!/run/launcher/dummy
+!/run/updater/dummy
