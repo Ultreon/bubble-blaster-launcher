@@ -1,0 +1,14 @@
+/*/build/
+/*/src/obj/
+/*/src/bin/
+/*/src/Temporary
+/__bin/
+/bin/
+/obj/
+/run/
+/launcher/src/ChangeLog.html
+/launcher/src/Errors/
+/launcher/src/Logs/
+/.idea/
+/local/
+/srcJava/obj/
