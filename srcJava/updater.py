@@ -1,5 +1,19 @@
+#  Copyright (c) 2022.
+#
+#  This program is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 import io
-import math
 import os
 import platform
 import sys
@@ -119,6 +133,29 @@ class Checker(object):
 
 
 # noinspection PyUnboundLocalVariable,PyArgumentList
+def file_size(size: int):
+    if size < 1024:
+        return f"{round(size)} , 1Bytes"
+    elif size < (1024 * 1024):
+        return f"{round(size / 1024, 1)} kB"
+    elif size < (1024 * 1024 * 1024):
+        return f"{round(size / 1024 / 1024, 1)} MB"
+    elif size < (1024 * 1024 * 1024 * 1024):
+        return f"{round(size / 1024 / 1024 / 1024, 1)} GB"
+    elif size < (1024 * 1024 * 1024 * 1024 * 1024):
+        return f"{round(size / 1024 / 1024 / 1024 / 1024, 1)} TB"
+    elif size < (1024 * 1024 * 1024 * 1024 * 1024 * 1024):
+        return f"{round(size / 1024 / 1024 / 1024 / 1024 / 1024, 1)} PB"
+    elif size < (1024 * 1024 * 1024 * 1024 * 1024 * 1024 * 1024):
+        return f"{round(size / 1024 / 1024 / 1024 / 1024 / 1024 / 1024, 1)} EB"
+    elif size < (1024 * 1024 * 1024 * 1024 * 1024 * 1024 * 1024 * 1024):
+        return f"{round(size / 1024 / 1024 / 1024 / 1024 / 1024 / 1024 / 1024, 1)} ZB"
+    elif size < (1024 * 1024 * 1024 * 1024 * 1024 * 1024 * 1024 * 1024 * 1024):
+        return f"{round(size / 1024 / 1024 / 1024 / 1024 / 1024 / 1024 / 1024 / 1024, 1)} YB"
+
+    return str(size)
+
+
 class Updater(wx.Panel):
     # noinspection PyUnusedLocal
     def __init__(self, url, xml, version, subversion, release, state, statebuild, *args, **kw):
@@ -182,7 +219,7 @@ class Updater(wx.Panel):
         import zipfile
         import shutil
 
-        load_ = wx.ProgressDialog("Please Wait...", "", style=wx.PD_APP_MODAL | wx.PD_AUTO_HIDE | wx.PD_ESTIMATED_TIME)
+        load_ = wx.ProgressDialog("Please Wait...", "", style=wx.PD_AUTO_HIDE | wx.PD_ESTIMATED_TIME | wx.PD_SMOOTH)
         load_.Show()
 
         if st == "a":
@@ -228,7 +265,7 @@ class Updater(wx.Panel):
 
         load_.Update(100, "Extracting...\n" + message)
 
-    # noinspection PyProtectedMember
+    # noinspection PyProtectedMember,PyMethodMayBeStatic
     def download(self, url, message="Downloading Launcher", fp=None) -> str:
         """
         Downloads a file.
@@ -241,8 +278,8 @@ class Updater(wx.Panel):
 
         import random
 
-        progress = wx.ProgressDialog("Please Wait...", "", style=wx.PD_APP_MODAL | wx.PD_AUTO_HIDE |
-                                                                 wx.PD_ESTIMATED_TIME)
+        progress = wx.ProgressDialog("Please Wait...", "",
+                                     style=wx.PD_AUTO_HIDE | wx.PD_ESTIMATED_TIME | wx.PD_ESTIMATED_TIME | wx.PD_REMAINING_TIME | wx.PD_SMOOTH)
 
         progress.SetSize(400, 320)
         progress.Show()
@@ -268,9 +305,9 @@ class Updater(wx.Panel):
             # print("Downloaded: ", download.file_downloaded_bytes)
             # print("Total: ", download.file_total_bytes)
             try:
-                progress.SetRange(downloader.fileSize)
+                progress.SetRange(100)
                 progress.Update(int(100 * downloader.downloadedSize / downloader.fileSize), message + "\n" +
-                                self.file_size(downloader.downloadedSize) + " of " + self.file_size(
+                                file_size(downloader.downloadedSize) + " of " + file_size(
                     downloader.fileSize))
             except wx._core.wxAssertionError:
                 pass
@@ -307,121 +344,21 @@ class Updater(wx.Panel):
                 time.sleep(1)
             print("[Run-Game]: Process Returned: %s" % process)
 
-    def file_size(self, size: int):
-        if size < 1024:
-            return f"{round(size)} , 1Bytes"
-        elif size < (1024 * 1024):
-            return f"{round(size / 1024, 1)} kB"
-        elif size < (1024 * 1024 * 1024):
-            return f"{round(size / 1024 / 1024, 1)} MB"
-        elif size < (1024 * 1024 * 1024 * 1024):
-            return f"{round(size / 1024 / 1024 / 1024, 1)} GB"
-        elif size < (1024 * 1024 * 1024 * 1024 * 1024):
-            return f"{round(size / 1024 / 1024 / 1024 / 1024, 1)} TB"
-        elif size < (1024 * 1024 * 1024 * 1024 * 1024 * 1024):
-            return f"{round(size / 1024 / 1024 / 1024 / 1024 / 1024, 1)} PB"
-        elif size < (1024 * 1024 * 1024 * 1024 * 1024 * 1024 * 1024):
-            return f"{round(size / 1024 / 1024 / 1024 / 1024 / 1024 / 1024, 1)} EB"
-        elif size < (1024 * 1024 * 1024 * 1024 * 1024 * 1024 * 1024 * 1024):
-            return f"{round(size / 1024 / 1024 / 1024 / 1024 / 1024 / 1024 / 1024, 1)} ZB"
-        elif size < (1024 * 1024 * 1024 * 1024 * 1024 * 1024 * 1024 * 1024 * 1024):
-            return f"{round(size / 1024 / 1024 / 1024 / 1024 / 1024 / 1024 / 1024 / 1024, 1)} YB"
-
-        return str(size)
-
-
-# noinspection PyPep8Naming
-class Process(object):
-    def __init__(self):
-
-        self.process = None
-        # self.process.Bind(wx.EVT_IDLE, self.OnIdle)
-
-        # We can either derive from wx.Process and override OnTerminate
-        # or we can let wx.Process send this window an event that is
-        # caught in the normal way...
-        # self.process.Bind(wx.EVT_END_PROCESS, self.OnProcessEnded)
-
-    def OnExecuteBtn(self, cmd):
-
-        self.process = wx.Process(self)
-        self.process.Redirect()
-        pid = wx.Execute(cmd, wx.EXEC_ASYNC, self.process)
-        print('OnExecuteBtn: "%s" pid: %s\n' % (cmd, pid))
-        #
-        # self.inp.Enable(True)
-        # self.sndBtn.Enable(True)
-        # self.termBtn.Enable(True)
-        # self.cmd.Enable(False)
-        # self.exBtn.Enable(False)
-        # self.inp.SetFocus()
-
-    def Execute(self, command):
-        self.OnExecuteBtn(command)
-
-    def OnSendText(self, text):
-        print('OnSendText: "%s"\n' % text)
-        text += '\n'
-        self.process.GetOutputStream().write(text.encode('utf-8'))
-
-    def Send(self, text):
-        self.OnSendText(text)
-
-    def OnCloseStream(self):
-        print('OnCloseStream\n')
-        self.process.CloseOutput()
-
-    def Close(self):
-        self.OnCloseStream()
-
-    def OnIdle(self):
-        if self.process is not None:
-            stream = self.process.GetInputStream()
-            err_stream = self.process.GetErrorStream()
-
-            if stream.CanRead():
-                text = stream.read()
-                sys.stdout.write(text)
-            if stream.CanRead():
-                stderr_ = err_stream.read()
-                sys.stderr.write(stderr_)
-
-    def OnProcessEnded(self, evt):
-        print('OnProcessEnded, pid:%s,  exitCode: %s\n' %
-              (evt.GetPid(), evt.GetExitCode()))
-
-        stream = self.process.GetInputStream()
-        err_stream = self.process.GetErrorStream()
-
-        if stream.CanRead():
-            text = stream.read()
-            sys.stdout.write(text)
-        if stream.CanRead():
-            stderr_ = err_stream.read()
-            sys.stderr.write(stderr_)
-
-        self.process.Destroy()
-        self.process = None
-        os.kill(os.getpid(), 0)
-
-    def ShutdownDemo(self):
-        """
-        Called when the demo application is switching to a new sample. Tell
-        the process to close (by closing its output stream) and then wait
-        for the termination signals to be received and processed.
-
-        @return:
-        """
-
-        if self.process is not None:
-            self.process.CloseOutput()
-            wx.MilliSleep(250)
-            wx.Yield()
-            self.process = None
-
 
 class Downloader:
+    """
+    @author: Qboi123
+    @version: 1.1.0
+    """
+
     def __init__(self, url, fp):
+        """
+        @author: Qboi123
+        @version: 1.1.0
+        @param url: url to download
+        @param fp: file path to save the download to.
+        """
+
         self._blockSize = 131072
         from threading import Thread
         self._url = url
@@ -434,6 +371,13 @@ class Downloader:
 
     # noinspection PyUnboundLocalVariable,PyGlobalUndefined
     def download(self):
+        """
+        Download the file.
+
+        @author: Qboi123
+        @version: 1.1.0
+        @return:
+        """
         import urllib.request
 
         self.downloaded = False

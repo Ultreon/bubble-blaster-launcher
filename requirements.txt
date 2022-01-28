@@ -5,3 +5,6 @@ pywin32==303
 wxPython==4.1.1
 pyinstaller==4.8
 pypiwin32~=223
+click~=8.0.3
+PySide2~=5.15.2.1
+PySide6~=6.2.2.1

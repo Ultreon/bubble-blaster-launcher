@@ -3,10 +3,22 @@
 /srcJava/bin/
 /srcJava/obj/
 /srcJava/Runtime/
+/launcher/src/obj/
+/updater/src/obj/
+/installer/src/obj/
 /src/Runtime/
 .idea/
 !.idea/workspace.xml
 
-/run/
+/local/
+
+/run/launcher
+/run/updater
 !/run/launcher/dummy
 !/run/updater/dummy
+/*/build/
+/*/src/build/
+
+*.log
+
+ChangeLog.html

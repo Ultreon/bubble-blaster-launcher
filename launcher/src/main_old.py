@@ -14,7 +14,12 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
+#
+#  This program is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+import io
 import json
 import os
 import platform
@@ -853,12 +858,12 @@ class QLauncherWindow(Tk):
         # self.iconOptifine = PhotoImage(file="Icons/optifine.png")
         # self.iconMinecraft = PhotoImage(file="Icons/minecraft.png")
 
-        self.iconIndev = PhotoImage(file="icons/indev.png")
-        self.iconAlpha = PhotoImage(file="icons/alpha.png")
-        self.iconBeta = PhotoImage(file="icons/beta.png")
-        self.iconRelease = PhotoImage(file="icons/release.png")
-        self.iconPreRelease = PhotoImage(file="icons/pre-release.png")
-        self.iconUnknown = PhotoImage(file="icons/unknown.png")
+        self.iconIndev = PhotoImage(file="Icons/indev.png")
+        self.iconAlpha = PhotoImage(file="Icons/alpha.png")
+        self.iconBeta = PhotoImage(file="Icons/beta.png")
+        self.iconRelease = PhotoImage(file="Icons/release.png")
+        self.iconPreRelease = PhotoImage(file="Icons/pre-release.png")
+        self.iconUnknown = PhotoImage(file="Icons/unknown.png")
 
         # Initialize colors for the modloader and Minecraft
         # self.colorRift = "#D7D7D7"
@@ -1422,29 +1427,131 @@ class QLauncherWindow(Tk):
             })])
 
 
+# noinspection PyTypeChecker
+class Log(io.IOBase):
+    """
+    @author: Qboi123
+    @since: 0.0.5
+    @version: 1.4.3
+    @license: GNU General Public License v3.0
+    """
+
+    def __init__(self, file, std, name="Out"):
+        """
+        @author: Qboi123
+        @param file: log file.
+        @param std: system default output.
+        @param name: name of the logger.
+        @version: 1.0.0
+        """
+
+        self.file = file
+        self.std = std
+        self.name = name
+        self.old = "\n"
+        self.fp = None
+        if not os.path.exists("logs"):
+            os.makedirs("logs")
+
+    def write(self, o: str):
+        """
+        @author: Qboi123
+        @version: 1.0.0
+        @param o:
+        @return:
+        """
+
+        if self.old[-1] == "\n":
+            self.std.write("[" + time.ctime(time.time()) + "] [" + self.name + "]: " + o)
+            self.fp = open(self.file, "a+")
+            self.fp.write("[" + time.ctime(time.time()) + "] [" + self.name + "]: " + o)
+            self.fp.close()
+        else:
+            self.std.write(o)
+            self.fp = open(self.file, "a+")
+            self.fp.write(o)
+            self.fp.close()
+        self.old = o
+
+    def writelines(self, lines: Iterable[Union[bytes, bytearray]]) -> None:
+        """
+        @author: Qboi123
+        @version: 1.0.0
+        @param lines:
+        @return:
+        """
+
+        for line in lines:
+            self.write(line)
+
+    # noinspection PyUnusedLocal,SpellCheckingInspection
+    def potato(self, exefile):
+        """
+        @author: Qboi123
+        @version: P.O.T.A.T.O
+        @license Creative Commons Zero (only the method / function)
+        @param exefile: nothing
+        @return: void
+        """
+
+        self.flush()
+
+    def flush(self):
+        """
+        @author: Qboi123
+        @version: 0.0.1
+        @return:
+        """
+
+        pass
+
+    def fileno(self):
+        """
+        @author: Qboi123
+        @version: 1.0.0
+        @return:
+        """
+
+        self.fp = open(self.file, "a+")
+        return self.fp.fileno()
+
+    def read(self):
+        """
+        @author: Qboi123
+        @version: 1.0.0
+        @return:
+        """
+
+        import time
+        a_ = self.std.read()
+        self.fp = open(self.file, "a+")
+        self.fp.write("[{time}] [In]: ".format(time=time.ctime(time.time())) + a_)
+        self.fp.close()
+
+
 if __name__ == '__main__':
+    start_time = time.time()
+    start_ctime = time.ctime(start_time).replace(" ", "-").replace(":", ".")
+
+    if not os.path.exists("%s/Logs" % os.getcwd().replace("\\", "/")):
+        os.makedirs("%s/Logs" % os.getcwd().replace("\\", "/"))
+
+    if not os.path.exists("%s/Errors" % os.getcwd().replace("\\", "/")):
+        os.makedirs("%s/Errors" % os.getcwd().replace("\\", "/"))
+
+    log_file = time.strftime("%m-%d-%Y %H.%M.%S.log", time.gmtime(start_time))
+
+    stderr = Log(os.getcwd().replace("\\", "/") + "/Errors/" + log_file, sys.stderr, "Err")
+    stdout = Log(os.getcwd().replace("\\", "/") + "/Logs/" + log_file, sys.stdout)
+    sys.stderr = stderr
+    sys.stdout = stdout
+
     if hasattr(sys, "_MEIPASS"):
         # noinspection PyProtectedMember
         os.chdir(sys._MEIPASS)
 
     os.makedirs(os.path.join(DATA_FOLDER, "Logs/Launcher"), exist_ok=True)
     file = open(os.path.join(DATA_FOLDER, time.strftime("Logs/Launcher/Log %Y-%m-%d %H.%M.%S.log")), "w+")
-    # sys.stdout = file
-    # sys.stderr = file
-
-
-    # def func_0(code: int, exit__: Callable[[int], None]):
-    #     file.close()
-    #     exit__(code)
-    #
-    # exit_ = sys.exit
-    # import builtins
-    #
-    # # noinspection PyShadowingBuiltins
-    # def exit(code: int):
-    #     func_0(code, exit_)
-    # builtins.exit = lambda code: func_0(code, exit_)
-    # sys.exit = lambda code: func_0(code, exit_)
 
     try:
         QLauncherWindow().mainloop()

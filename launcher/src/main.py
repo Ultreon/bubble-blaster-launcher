@@ -1,5 +1,6 @@
 #! /usr/bin/python3
 
+import getpass
 #  Copyright (c) 2022.
 #
 #  This program is free software: you can redistribute it and/or modify
@@ -14,7 +15,12 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
+#
+#  This program is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+import io
 import json
 import os
 import platform
@@ -30,9 +36,25 @@ from random import randint
 from tarfile import TarFile
 from threading import Thread
 from tkinter import Tk, Frame, Canvas, ttk, Label, PhotoImage
-from typing import Optional, Dict, List, Union, Any, Callable, BinaryIO
+from typing import Optional, Dict, List, Union, Any, Callable, BinaryIO, Iterable
 from zipfile import ZipFile
-import getpass
+
+from PySide2.QtCore import QUrl
+from PySide2.QtGui import QIcon, Qt
+from PySide2.QtWebEngineWidgets import QWebEngineView
+from PySide2.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QHBoxLayout, \
+    QComboBox, QToolBar, QToolButton, QListWidget, QListWidgetItem, QWizard, QWizardPage, QCommandLinkButton, \
+    QMessageBox, QLineEdit, QFormLayout
+
+WIN32_APP_ID = u"UltreonTeam.BubbleBlaster.Installer.1.0.0.0"
+
+# noinspection PyBroadException
+try:
+    import ctypes
+
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(WIN32_APP_ID)
+except Exception:
+    pass
 
 os.getlogin = lambda: getpass.getuser()
 
@@ -43,6 +65,7 @@ if hasattr(sys, "_MEIPASS"):
 try:
     # noinspection PyUnresolvedReferences
     import win32api
+    # noinspection PyUnresolvedReferences
     import pywintypes
 
     # print(win32api.GetUserNameEx(0))
@@ -55,7 +78,6 @@ try:
     # os.getlogin = lambda: win32api.GetUserName()
 except ImportError as e:
     pass
-from PIL import Image, ImageTk, ImageDraw, ImageFont
 
 DATA_FOLDER = None
 
@@ -117,6 +139,13 @@ ENTRY_SEL_FG_FOC = "white"
 ENTRY_SEL_FG_DIS = "#7f7f7f"
 
 LAUNCHER_CFG = os.path.join(DATA_FOLDER, "launchercfg.json")
+
+ICON_INDEV = "Icons/indev.png"
+ICON_ALPHA = "Icons/alpha.png"
+ICON_BETA = "Icons/beta.png"
+ICON_PRE_RELEASE = "Icons/pre-release.png"
+ICON_RELEASE = "Icons/release.png"
+ICON_UNKNOWN = "Icons/unknown.png"
 
 
 def create_file(fp):
@@ -192,13 +221,13 @@ class Downloader:
         self.done = True
 
     # noinspection PyGlobalUndefined
-    def _download_temp(self, httpIO: BinaryIO):
+    def _download_temp(self, http_io: BinaryIO):
         import tempfile
         global active
         with tempfile.TemporaryFile("ba+") as f:
             # print(f.file)
             while True:
-                block = httpIO.read(1024)
+                block = http_io.read(1024)
                 # data_blocks.append(block)
                 self.downloaded += len(block)
                 _hash = ((60 * self.downloaded) // self.totalSize)
@@ -207,336 +236,6 @@ class Downloader:
                     break
                 f.write(block)
             f.close()
-
-
-# noinspection PyAttributeOutsideInit,PyUnusedLocal
-class CustomScrollbar(Canvas):
-    def __init__(self, parent, **kwargs):
-        self.command = kwargs.pop("command", None)
-        kw = kwargs.copy()
-        if "fg" in kw.keys():
-            del kw["fg"]
-        Canvas.__init__(self, parent, **kw, highlightthickness=0, border=0, bd=0)
-        if "fg" not in kwargs.keys():
-            kwargs["fg"] = "darkgray"
-
-        # coordinates are irrelevant; they will be recomputed
-        # in the 'set' method\
-        self.old_y = 0
-        self._id = self.create_rectangle(0, 0, 1, 1, fill=kwargs["fg"], outline=kwargs["fg"], tags=("thumb",))
-        self.bind("<ButtonPress-1>", self.on_press)
-        self.bind("<ButtonRelease-1>", self.on_release)
-
-    def configure(self, cnf=None, **kwargs):
-        command = kwargs.pop("command", None)
-        self.command = command if command is not None else self.command
-        kw = kwargs.copy()
-        if "fg" in kw.keys():
-            del kw["fg"]
-        super().configure(**kw, highlightthickness=0, border=0, bd=0)
-        if "fg" not in kwargs.keys():
-            kwargs["fg"] = "darkgray"
-        self.itemconfig(self._id, fill=kwargs["fg"], outline=kwargs["fg"])
-
-    def config(self, cnf=None, **kwargs):
-        self.configure(cnf, **kwargs)
-
-    def redraw(self, event):
-        # The command is presumably the `yview` method of a widget.
-        # When called without any arguments it will return fractions
-        # which we can pass to the `set` command.
-        self.set(*self.command())
-
-    def set(self, first, last):
-        first = float(first)
-        last = float(last)
-        height = self.winfo_height()
-        x0 = 4
-        x1 = self.winfo_width() - 4
-        y0 = max(int(height * first), 0) + 8
-        y1 = min(int(height * last), height) - 8
-        self._x0 = x0
-        self._x1 = x1
-        self._y0 = y0
-        self._y1 = y1
-
-        # noinspection PyTypeChecker
-        self.coords("thumb", x0, y0, x1, y1)
-
-    def on_press(self, event):
-        self.bind("<Motion>", self.on_click)
-        self.pressed_y = event.y
-        self.on_click(event)
-
-    def on_release(self, event):
-        self.unbind("<Motion>")
-
-    def on_click(self, event):
-        y = event.y / self.winfo_height()
-        y0 = self._y0
-        y1 = self._y1
-        a = y + ((y1 - y0) / -(self.winfo_height() * 2))
-        self.command("moveto", a)
-
-
-# noinspection PyUnusedLocal
-class ScrolledWindow(Frame):
-    """
-    1. Master widget gets scrollbars and a canvas. Scrollbars are connected
-    to canvas scrollregion.
-
-    2. self.scrollwindow is created and inserted into canvas
-
-    Usage Guideline:
-    Assign any widgets as children of <ScrolledWindow instance>.scrollwindow
-    to get them inserted into canvas
-
-    __init__(self, parent, canv_w = 400, canv_h = 400, *args, **kwargs)
-    docstring:
-    Parent = master of scrolled window
-    canv_w - width of canvas
-    canv_h - height of canvas
-
-    """
-
-    def __init__(self, parent, canv_w=400, canv_h=400, expand=False, fill=None, height=None, width=None, *args,
-                 scrollcommand=lambda: None, scrollbarbg=None, scrollbarfg="darkgray", **kwargs):
-        """Parent = master of scrolled window
-        canv_w - width of canvas
-        canv_h - height of canvas
-
-       """
-        super().__init__(parent, *args, **kwargs)
-
-        self.parent = parent
-        self.scrollCommand = scrollcommand
-
-        # creating a scrollbars
-
-        if width is None:
-            __width = 0
-        else:
-            __width = width
-
-        if height is None:
-            __height = 0
-        else:
-            __height = width
-
-        self.canv = Canvas(self.parent, bg='#FFFFFF', width=canv_w, height=canv_h,
-                           scrollregion=(0, 0, __width, __height), highlightthickness=0)
-
-        self.vbar = CustomScrollbar(self.parent, width=10, command=self.canv.yview, bg=scrollbarbg, fg=scrollbarfg)
-        self.canv.configure(yscrollcommand=self.vbar.set)
-
-        self.vbar.pack(side="right", fill="y")
-        self.canv.pack(side="left", fill=fill, expand=expand)
-
-        # creating a frame to insert to canvas
-        self.scrollwindow = Frame(self.parent, height=height, width=width)
-
-        self.scrollwindow2 = self.canv.create_window(0, 0, window=self.scrollwindow, anchor='nw', height=height,
-                                                     width=width)
-
-        self.canv.config(  # xscrollcommand=self.hbar.set,
-            yscrollcommand=self.vbar.set,
-            scrollregion=(0, 0, canv_h, canv_w))
-
-        self.scrollwindow.bind('<Configure>', self._configure_window)
-        self.scrollwindow.bind('<Enter>', self._bound_to_mousewheel)
-        self.scrollwindow.bind('<Leave>', self._unbound_to_mousewheel)
-
-        return
-
-    def _bound_to_mousewheel(self, event):
-        self.canv.bind_all("<MouseWheel>", self._on_mousewheel)
-
-    def _unbound_to_mousewheel(self, event):
-        self.canv.unbind_all("<MouseWheel>")
-
-    def _on_mousewheel(self, event):
-        self.canv.yview_scroll(int(-1 * (event.delta / 120)), "units")
-        # self.scrollCommand(int(-1 * (event.delta / 120)), self.scrollwindow.winfo_reqheight(), self.vbar.get(),
-        # self.vbar)
-
-    def _configure_window(self, event):
-        # update the scrollbars to match the size of the inner frame
-        size = (self.scrollwindow.winfo_reqwidth(), self.scrollwindow.winfo_reqheight() + 1)
-        # noinspection PyTypeChecker
-        self.canv.config(scrollregion='0 0 %s %s' % size)
-        # if self.scrollwindow.winfo_reqwidth() != self.canv.winfo_width():
-        #     # update the canvas's width to fit the inner frame
-        #     # self.canv.config(width=self.scrollwindow.winfo_reqwidth())
-        # if self.scrollwindow.winfo_reqheight() != self.canv.winfo_height():
-        #     # update the canvas's width to fit the inner frame
-        #     # self.canv.config(height=self.scrollwindow.winfo_reqheight())
-
-
-# noinspection PyPep8Naming,PyShadowingNames
-class CustomFontButton(ttk.Button):
-    def __init__(self, master, text, width=None, foreground="black", truetype_font=None, font_path=None, size=None,
-                 **kwargs):
-        """
-        Custom font for buttons.
-
-        :param master:
-        :param text:
-        :param width:
-        :param foreground:
-        :param truetype_font:
-        :param font_path:
-        :param size:
-        :param kwargs:
-        """
-
-        if truetype_font is None:
-            if font_path is None:
-                raise ValueError("Font path can't be None")
-
-            # Initialize font
-        print(tkinter.font.names())
-        # tkinter.font.nametofont("TkTextFont").cget("family")
-        # exit(1)
-
-        truetype_font = ImageFont.truetype(font_path, size)
-
-        w, h = truetype_font.getsize(text)
-
-        h += 5
-        # w, h = draw
-        W = width + 20
-        H = h + 20
-        #
-        # if width > width_2:
-        #     width_ = width
-        # else:
-        #     width_ = width_2
-        # print(width_2, width)
-
-        image = Image.new("RGBA", (W, H), color=(0, 0, 0, 0))
-        draw = ImageDraw.Draw(image)
-
-        # print(width)
-        # print(width / 2)
-
-        draw.text((((W - w) / 2) + 1, ((H - h) / 2) + 2), text, font=truetype_font, fill="#00000037", align="center")
-        draw.text(((W - w) / 2, (H - h) / 2), text, font=truetype_font, fill=foreground)
-
-        self._photoimage = ImageTk.PhotoImage(image)
-        ttk.Button.__init__(self, master, image=self._photoimage, **kwargs)
-
-        self.truetype_font = truetype_font
-        self.font_path = font_path
-        self.fsize = size
-        self.text = text
-        self.foreground = foreground
-        self.width = width
-
-    def configure(self, cnf=None, **kw):
-        truetype_font = kw.pop("truetype_font", None)
-        font_path = kw.pop("font_path", None)
-        size = kw.pop("fsize", None)
-        text = kw.pop("text", None)
-        foreground = kw.pop("foreground", None)
-        width = kw.pop("width", None)
-        if foreground is None:
-            foreground = kw.pop("fg", None)
-
-        if (truetype_font is None) and (font_path is None) and (size is None) and (text is None) and (
-                foreground is None) and (width is None):
-            changed = False
-        else:
-            changed = True
-
-        if truetype_font is None:
-            truetype_font = self.truetype_font
-        if font_path is None:
-            font_path = self.font_path
-        if size is None:
-            size = self.fsize
-        if text is None:
-            text = self.text
-        if foreground is None:
-            foreground = self.foreground
-        if width is None:
-            width = self.width
-
-        if changed:
-            # Initialize font
-            truetype_font = ImageFont.truetype(font_path, size)
-            w, h = truetype_font.getsize(text)
-        else:
-            w, h = truetype_font.getsize(text)
-
-        # print(width, width_2)
-        # exit()
-
-        if changed:
-            # w, h = draw
-            W = width + 20
-            H = h + 20
-            image = Image.new("RGBA", (W, H), color=(0, 0, 0, 0))
-            draw = ImageDraw.Draw(image)
-
-            # print(width_2, width)
-
-            draw.text(((W - w) / 2, ((H - h) / 2) - 2), text, font=truetype_font, fill=0x0000007f, align="center")
-            draw.text(((W - w) / 2, (H - h) / 2), text, font=truetype_font, fill=foreground, align="center")
-
-            self._photoimage = ImageTk.PhotoImage(image)
-            super().configure(cnf, image=self._photoimage, **kw)
-
-        else:
-            super().configure(cnf, **kw)
-
-        self.truetype_font = truetype_font
-        self.font_path = font_path
-        self.fsize = size
-        self.text = text
-        self.foreground = foreground
-
-    def config(self, cnf=None, **kw):
-        self.configure(cnf, **kw)
-
-
-class LauncherConfig(object):
-    def __init__(self, token):
-        """
-        Not Implemented!
-
-        :param token:
-        """
-
-        self.token = token
-
-
-def get_resized_img(img, video_size):
-    """
-    Get resized image.
-
-    :param img:
-    :param video_size:
-    :return:
-    """
-
-    width, height = video_size  # these are the MAX dimensions
-    video_ratio = width / height
-    img_ratio = img.size[0] / img.size[1]
-    if video_ratio >= 1:  # the video is wide
-        if img_ratio <= video_ratio:  # image is not wide enough
-            height_new = int(width / img_ratio)
-            size_new = width, height_new
-        else:  # image is wider than video
-            width_new = int(height * img_ratio)
-            size_new = width_new, height
-    else:  # the video is tall
-        if img_ratio >= video_ratio:  # image is not tall enough
-            width_new = int(height * img_ratio)
-            size_new = width_new, height
-        else:  # image is taller than video
-            height_new = int(width / img_ratio)
-            size_new = width, height_new
-    return img.resize(size_new, resample=Image.LANCZOS)
 
 
 def data_path(path: str):
@@ -554,21 +253,22 @@ class SDK:
     _URL = "https://github.com/Ultreon/bubble-blaster/raw/main/sdks.json"
     __INSTANCES: Dict[str, Dict[str, 'SDK']] = None
 
-    def __init__(self, type_: str, versionId: str, executablePath: str, download: Dict[str, str], version: str,
+    # noinspection PyPep8Naming
+    def __init__(self, type_: str, version_id: str, executablePath: str, download: Dict[str, str], version: str,
                  date: str, innerPath: str, **data):
         self.executable_path = executablePath
         self.type = type_
-        self.versionId = versionId
+        self.versionId = version_id
         self.download_info = download
         self.version = version
         self.date = date
-        self.path = os.path.join(DATA_FOLDER, f"Runtime/{type_}/{versionId}")
+        self.path = os.path.join(DATA_FOLDER, f"Runtime/{type_}/{version_id}")
         self.innerPath = innerPath
 
         self.data = data
 
     @classmethod
-    def load_or_get(cls, type_: str, versionId: str):
+    def load_or_get(cls, type_: str, version_id: str):
         if cls.__INSTANCES is None:
             import urllib.request
             import urllib.error
@@ -590,13 +290,13 @@ class SDK:
                         cls.__INSTANCES[type__] = {}
                     cls.__INSTANCES[type__][version_id] = sdk
 
-        return cls.__INSTANCES[type_][versionId]
+        return cls.__INSTANCES[type_][version_id]
 
-    def download(self, messageLabel: Label, update: Callable[[], None]) -> Optional[str]:
+    def download(self, message_label: Label, update: Callable[[], None]) -> Optional[str]:
         if os.path.exists(self.path):
             return
 
-        messageLabel.configure(
+        message_label.configure(
             text=f"Prepare Downloading Runtime"
         )
 
@@ -657,14 +357,14 @@ class SDK:
 
         downloader = Downloader(url, file_name)
         while not downloader.done:
-            messageLabel.configure(
+            message_label.configure(
                 text=f"Downloading Runtime: {int(100 * downloader.downloaded / downloader.totalSize)}%"
             )
             update()
 
         print("Extracting game runtime")
 
-        messageLabel.configure(text=f"Extracting Runtime")
+        message_label.configure(text=f"Extracting Runtime")
 
         if ext == ".tar.gz":
             tar = tarfile.open(file_name, "r:gz")
@@ -676,14 +376,14 @@ class SDK:
             zip_ = ZipFile(file_name, "r")
             extraction_thread = Thread(target=lambda: self.extract_zip(zip_), name="DataExtractThread")
         else:
-            messageLabel.configure(text=f"Error Occurred")
+            message_label.configure(text=f"Error Occurred")
             return "Extension invalid: " + ext
 
         extraction_thread.start()
         while extraction_thread.is_alive():
             update()
 
-        messageLabel.configure(text=f"Finalizing Runtime")
+        message_label.configure(text=f"Finalizing Runtime")
 
     def extract_tar(self, tar: TarFile):
         tar.extractall(self.path)
@@ -701,8 +401,8 @@ class SDK:
         os.rmdir(inner)
 
     @staticmethod
-    def update(messageLabel: Label):
-        messageLabel.configure(text="Extracting Runtime")
+    def update(message_label: Label):
+        message_label.configure(text="Extracting Runtime")
 
 
 class Runtime:
@@ -716,6 +416,7 @@ class Runtime:
 
 
 class Version(object):
+    # noinspection PyPep8Naming
     def __init__(self, version_id, name, stable: bool, preRelease: bool, release: bool, runtime: dict, buildDate: str,
                  download: str, args: List[str], **data):
         self.versionID = version_id
@@ -728,6 +429,22 @@ class Version(object):
         self.download = download
         self.args = args
         self.data = data
+
+    def icon(self) -> QIcon:
+        if self.versionID.lower().__contains__("indev"):
+            icon: QIcon = QIcon(ICON_INDEV)
+        elif self.versionID.lower().__contains__("alpha"):
+            icon: QIcon = QIcon(ICON_ALPHA)
+        elif self.versionID.lower().__contains__("beta"):
+            icon: QIcon = QIcon(ICON_BETA)
+        elif self.versionID.lower().__contains__("release"):
+            icon: QIcon = QIcon(ICON_RELEASE)
+        elif self.versionID.lower().__contains__("pre"):
+            icon: QIcon = QIcon(ICON_PRE_RELEASE)
+        else:
+            icon: QIcon = QIcon(ICON_UNKNOWN)
+
+        return icon
 
 
 class VersionChecker(object):
@@ -748,6 +465,7 @@ class VersionChecker(object):
         print(f"DB_Dict: {db_dict}")
         self.versions = []
         for version_id, data in db_dict["versions"].items():
+            print(version_id)
             self.versions.append(
                 Version(version_id, **data))
 
@@ -759,6 +477,8 @@ class QLauncherWindow(Tk):
         super(QLauncherWindow, self).__init__()
 
         # Configure window
+        self.playBtn: Any = None
+        self.sw: Any = None
         self.title("QBubbles Launcher")
         self.geometry("900x506")
         self.minsize(614, 400)
@@ -828,6 +548,7 @@ class QLauncherWindow(Tk):
 
         # Define profile name
         if globals().__contains__("win32api"):
+            # noinspection PyUnresolvedReferences
             try:
                 self.profileName = win32api.GetUserNameEx(3)
             except pywintypes.error:
@@ -845,20 +566,12 @@ class QLauncherWindow(Tk):
 
         print("Setup UI...")
 
-        # Initialize Icons for the modloader and Minecraft
-        # self.iconRift = PhotoImage(file="Icons/rift.png")
-        # self.iconForge = PhotoImage(file="Icons/forge.png")
-        # self.iconFabric = PhotoImage(file="Icons/fabric.png")
-        # self.iconClassic = PhotoImage(file="Icons/classic.png")
-        # self.iconOptifine = PhotoImage(file="Icons/optifine.png")
-        # self.iconMinecraft = PhotoImage(file="Icons/minecraft.png")
-
-        self.iconIndev = PhotoImage(file="icons/indev.png")
-        self.iconAlpha = PhotoImage(file="icons/alpha.png")
-        self.iconBeta = PhotoImage(file="icons/beta.png")
-        self.iconRelease = PhotoImage(file="icons/release.png")
-        self.iconPreRelease = PhotoImage(file="icons/pre-release.png")
-        self.iconUnknown = PhotoImage(file="icons/unknown.png")
+        self.iconIndev = PhotoImage(file="Icons/indev.png")
+        self.iconAlpha = PhotoImage(file="Icons/alpha.png")
+        self.iconBeta = PhotoImage(file="Icons/beta.png")
+        self.iconRelease = PhotoImage(file="Icons/release.png")
+        self.iconPreRelease = PhotoImage(file="Icons/pre-release.png")
+        self.iconUnknown = PhotoImage(file="Icons/unknown.png")
 
         # Initialize colors for the modloader and Minecraft
         # self.colorRift = "#D7D7D7"
@@ -898,8 +611,8 @@ class QLauncherWindow(Tk):
         self.sPanel.pack(side="left", fill="y")
 
         # Scrollwindow for the slots frame
-        self.sw = ScrolledWindow(self.sPanel, vlw, self.winfo_height() + 0, expand=True, fill="both",
-                                 scrollbarbg="#666666", scrollbarfg="#888888")
+        # self.sw = ScrolledWindow(self.sPanel, vlw, self.winfo_height() + 0, expand=True, fill="both",
+        #                          scrollbarbg="#666666", scrollbarfg="#888888")
 
         # Configure the canvas from the scrollwindow
         self.canv = self.sw.canv
@@ -987,9 +700,9 @@ class QLauncherWindow(Tk):
         # self.background = self.canvas.create_image(0, 0, anchor="nw", image=self._tmp_img_tk)
         self.canvas.pack(fill="both", expand=True)
         self.bottomPanel = Frame(self.rightPanels, bg="#262626", height=60)
-        self.playBtn = CustomFontButton(
-            self.rightPanels, width=200, text="PLAY" if self.online else "PLAY OFFLINE", font_path="Roboto-Regular.ttf",
-            foreground="white", size=30, command=lambda: self.play(self.selVersion.runtime))
+        # self.playBtn = CustomFontButton(
+        #     self.rightPanels, width=200, text="PLAY" if self.online else "PLAY OFFLINE", font_path="Roboto-Regular.ttf",
+        #     foreground="white", size=30, command=lambda: self.play(self.selVersion.runtime))
         self.playBtn.place(x=self.bottomPanel.winfo_width() / 2, y=self.bottomPanel.winfo_y() + 10, anchor="n")
         self.label = Label(
             self.bottomPanel, height=1, text="",
@@ -1099,7 +812,7 @@ class QLauncherWindow(Tk):
 
     def on_bottompanel_configure(self, evt):
         """
-        Update playbutton when resizing the window, this event is called from the bottom panel.
+        Update play button when resizing the window, this event is called from the bottom panel.
 
         :param evt:
         :return:
@@ -1132,7 +845,7 @@ class QLauncherWindow(Tk):
 
     def download_event(self, x):
         """
-        Download event, used to update the playbutton text to show how far with downloading.
+        Download event, used to update the play button text to show how far with downloading.
 
         :param x:
         :return:
@@ -1146,7 +859,7 @@ class QLauncherWindow(Tk):
 
     def play(self, runtime: Runtime):
         """
-        Runs the game version. (Or in other words: Open an process for the game version)
+        Runs the game version. (Or in other words: Open a process for the game version)
 
         :return:
         """
@@ -1212,70 +925,16 @@ class QLauncherWindow(Tk):
                 text=f"Downloading game... ({int(100 * download.downloaded / download.totalSize)}%)")
             self.update()
 
-        # print("Downloading game data: " + version.versionID)
-        #
-        # download = Downloader(
-        #     version.downloadData, os.path.join(DATA_FOLDER, "._Temp", version.downloadData.split("/")[-1]))
-        # while not download.done:
-        #     self.playBtn.configure(
-        #         text=f"Data {int(download.downloaded / 1024 / 1024)}/"
-        #              f"{int(download.totalSize / 1024 / 1024)}")
-        #     self.update()
-        #
-        # print("Downloading game requirements: " + version.versionID)
-        #
-        # download = Downloader(
-        #     version.downloadReqs, os.path.join(DATA_FOLDER, "._Temp", version.downloadReqs.split("/")[-1]))
-        # while not download.done:
-        #     self.playBtn.configure(
-        #         text=f"Reqs {int(download.downloaded / 1024 / 1024)}/"
-        #              f"{int(download.totalSize / 1024 / 1024)}")
-        #     self.update()
-        #
-        # print("Installing requirements: " + version.versionID)
-        # self.playBtn.configure(text=f"Install Reqs")
-        # self.update()
-        # reqsfile = os.path.join(DATA_FOLDER, "._Temp", version.downloadReqs.split("/")[-1])
-        # if " " in reqsfile:
-        #     reqsfile = '"' + reqsfile + '"'
-        # pip_installer = Thread(target=lambda: os.system("pip install -r " + reqsfile), name="PipInstaller")
-        # pip_installer.start()
-        # while pip_installer.is_alive():
-        #     self.update()
-        #
-        # print("Extracting game data: " + version.versionID)
-        # self.playBtn.configure(text=f"Extract Data")
-        # zipfile = ZipFile(os.path.join(DATA_FOLDER, "._Temp", version.downloadData.split("/")[-1]), "r")
-        #
-        # dataextract_thread = Thread(
-        #     target=lambda: zipfile.extractall(
-        #         os.path.join(DATA_FOLDER, "data", version.versionID).replace('\\', "/")),
-        #     name="DataExtractThread")
-        # dataextract_thread.start()
-        # while dataextract_thread.is_alive():
-        #     self.update()
-        # zipfile.close()
         return True
 
     def configure_event(self, evt):
         """
         Configure event for updating the background image for the resolution and scale
 
-        :param evt:
-        :return:
+        @param evt:
+        @return:
         """
-        # Closes previous opened image
-        # self._backgroundImage.close()
 
-        # Open image and resize it
-        # self._backgroundImage: PIL.Image.Image = PIL.Image.open("background.png")
-        # self._backgroundImage = get_resized_img(self._backgroundImage, (evt.width, evt.height))
-
-        # Convert to tkinter.PhotoImage(...)
-        # self._tmp_img_tk = PIL.ImageTk.PhotoImage(self._backgroundImage)
-
-        # Update background
-        # self.canvas.itemconfig(self.background, image=self._tmp_img_tk)
         self.canvas.update()
 
     @staticmethod
@@ -1422,32 +1081,663 @@ class QLauncherWindow(Tk):
             })])
 
 
+class Profile:
+    def __init__(self, name: str, version: str):
+        self.name: str = name
+        self.version: str = version
+
+
+class ProfileManager:
+    def __init__(self):
+        self.__data: List = []
+        self.__file = os.path.join(DATA_FOLDER, "Profiles.json")
+
+        self.profiles: List[Profile] = []
+
+    def load(self):
+        if os.path.exists(self.__file):
+            with open(self.__file, "r") as file_:
+                self.__data = json.load(file_)
+
+        print(self.__data)
+
+        if isinstance(self.__data, list):
+            print(self.__data)
+            self.profiles = []
+            for item in self.__data:
+                print(item)
+                if isinstance(item, dict):
+                    name: str = "unnamed"
+                    if "name" in item:
+                        name = item["name"]
+                    version: str = "0.0.0"
+                    if "version" in item:
+                        version = item["version"]
+
+                    profile = Profile(name, version)
+                    self.profiles.append(profile)
+
+    def save(self):
+        self.__data = []
+        for profile in self.profiles:
+            self.__data.append({"name": profile.name, "version": profile.version})
+
+        with open(self.__file, "w+") as file_:
+            json.dump(self.__data, file_)
+
+
+class ProfilesList(QListWidget):
+    def __init__(self, profile_man: ProfileManager, widget: QWidget):
+        super().__init__(widget)
+
+        self.profileMan = profile_man
+        self.profiles: List[Profile] = self.profileMan.profiles
+
+    def load_profiles(self):
+        for profile in self.profiles:
+            item = QListWidgetItem(profile.name)
+            item.setData(QListWidgetItem.UserType, profile)
+            self.addItem(item)
+
+    def selected_profile(self) -> Optional[Profile]:
+        sel_items = self.selectedItems()
+        if sel_items.__len__() == 0:
+            return None
+        return sel_items[0].data(QListWidgetItem.UserType)
+
+
+class VersionsList(QListWidget):
+    def __init__(self, widget: QWidget):
+        super().__init__(widget)
+
+        self.versionChecker: VersionChecker = VersionChecker()
+        self.versions: Optional[List[Version]] = None
+
+    def load_versions(self):
+        self.versionChecker.download_version_list()
+        self.versions = self.versionChecker.versions
+
+        for version in self.versions:
+            item = QListWidgetItem(version.icon(), version.name)
+            item.setData(QListWidgetItem.UserType, version)
+            self.addItem(item)
+
+    def selected_version(self) -> Optional[Version]:
+        sel_items = self.selectedItems()
+        if sel_items.__len__() == 0:
+            return None
+        return sel_items[0].data(QListWidgetItem.UserType)
+
+
+class CreatePages:
+    class AddOptionsPage(QWizardPage):
+        def __init__(self, manage_type: 'ManageWizard.ManageTypePage'):
+            super().__init__()
+
+            self.setTitle("Create Profile")
+            self.setSubTitle("Enter the name, and select version for the profile")
+
+            self.manageType = manage_type
+            self.wizard = self.manageType.wizard
+
+            self.nameEdit = QLineEdit(self)
+            self.versionList = VersionsList(self)
+
+            load_thread = Thread(target=self.versionList.load_versions, name="VersionDB-Loader")
+            load_thread.start()
+
+            self.nameEdit.textChanged.connect(lambda evt: self.completeChanged.emit())
+            self.versionList.selectionChanged = lambda old, new: self.completeChanged.emit()
+            self.versionList.deselectionChanged = lambda old, new: self.completeChanged.emit()
+
+            layout = QFormLayout()
+            layout.addRow("Name: ", self.nameEdit)
+            layout.addRow("Version: ", self.versionList)
+
+            self.setLayout(layout)
+            self.setButtonText(QWizard.WizardButton.FinishButton, "Create")
+            self.setButtonText(QWizard.WizardButton.NextButton, "Create")
+
+            self.createButton = QPushButton("Create")
+            self.createButton.clicked.connect(self.create_profile)
+
+            self.wizard.setButton(QWizard.WizardButton.FinishButton, self.createButton)
+            self.wizard.button(self.wizard.BackButton).setEnabled(False)
+
+        def isComplete(self):
+            if not self.nameEdit.text().isprintable():
+                return False
+            if self.nameEdit.text().isspace():
+                return False
+            if self.nameEdit.text().__len__() == 0:
+                return False
+            if self.versionList.selectedItems().__len__() == 0:
+                return False
+            return True
+
+        def create_profile(self):
+            name: str = self.nameEdit.text()
+            version: Version = self.versionList.selected_version()
+
+            util_panel: UtilitiesPanel = self.wizard.panel
+            man = util_panel.profileMan
+
+            man.profiles.append(Profile(name, version.versionID))
+            man.save()
+            util_panel.reload_profiles()
+
+
+class DeletePages:
+    class SelectProfilePage(QWizardPage):
+        def __init__(self, manage_type: 'ManageWizard.ManageTypePage'):
+            super().__init__()
+
+            self.setTitle("Delete Profile")
+            self.setSubTitle("Select profile, click Delete to delete.")
+
+            self.manageType = manage_type
+            self.wizard = self.manageType.wizard
+
+            self.profileList = ProfilesList(self.wizard.panel.profileMan, self)
+            self.profileList.load_profiles()
+
+            self.profileList.selectionChanged = lambda old, new: self.completeChanged.emit()
+            self.profileList.deselectionChanged = lambda old, new: self.completeChanged.emit()
+
+            layout = QVBoxLayout()
+            layout.addWidget(self.profileList)
+
+            self.setLayout(layout)
+            self.setButtonText(QWizard.WizardButton.FinishButton, "Delete")
+            self.setButtonText(QWizard.WizardButton.NextButton, "Delete")
+
+            self.deleteButton = QPushButton("Delete")
+            self.deleteButton.clicked.connect(self.delete_profile)
+
+            self.wizard.setButton(QWizard.WizardButton.FinishButton, self.deleteButton)
+            self.wizard.button(self.wizard.BackButton).setEnabled(False)
+
+        def isComplete(self):
+            return self.profileList.selectedItems().__len__() != 0
+
+        def delete_profile(self):
+            profile: Profile = self.profileList.selected_profile()
+
+            util_panel: UtilitiesPanel = self.wizard.panel
+            man = util_panel.profileMan
+
+            man.profiles.remove(profile)
+            man.save()
+            util_panel.reload_profiles()
+
+
+class ModifyPages:
+    class SelectProfilePage(QWizardPage):
+        def __init__(self, manage_type: 'ManageWizard.ManageTypePage'):
+            super().__init__()
+
+            self.setTitle("Create Profile")
+            self.setSubTitle("Enter the name, and select version for the profile")
+
+            self.profilesList = ProfilesList(manage_type.wizard.panel.profileMan, self)
+            self.profilesList.load_profiles()
+
+            layout = QVBoxLayout()
+            layout.addWidget(self.profilesList)
+
+            self.setLayout(layout)
+
+            self.manageType = manage_type
+            self.wizard = self.manageType.wizard
+
+            self.setFinalPage(False)
+            self.wizard.button(QWizard.WizardButton.NextButton).clicked.connect(self.next)
+            self.page2: 'ModifyPages.SetOptionsPage' = ModifyPages.SetOptionsPage(self, self.manageType)
+
+        def profile(self):
+            return self.profilesList.selected_profile()
+
+        def next(self):
+            self.page2.init()
+            self.wizard.setPage(2, ModifyPages.SetOptionsPage(self, self.manageType))
+
+    class SetOptionsPage(QWizardPage):
+        def __init__(self, sel_prof_page: 'ModifyPages.SelectProfilePage', manage_type: 'ManageWizard.ManageTypePage'):
+            super().__init__()
+
+            self.setTitle("Create Profile")
+            self.setSubTitle("Enter the name, and select version for the profile")
+
+            self.manageType = manage_type
+            self.wizard = self.manageType.wizard
+
+            self.selProfPage = sel_prof_page
+
+            self.nameEdit = QLineEdit(self)
+            self.versionList: VersionsList = VersionsList(self)
+            self.nameEdit.textChanged.connect(lambda evt: self.completeChanged.emit())
+            self.versionList.selectionChanged = lambda old, new: self.completeChanged.emit()
+            self.versionList.deselectionChanged = lambda old, new: self.completeChanged.emit()
+
+            layout = QFormLayout()
+            layout.addRow("Name: ", self.nameEdit)
+            layout.addRow("Version: ", self.versionList)
+
+            self.setLayout(layout)
+            self.setButtonText(QWizard.WizardButton.FinishButton, "Create")
+            self.setButtonText(QWizard.WizardButton.NextButton, "Create")
+
+            self.createButton = QPushButton("Create")
+            self.createButton.clicked.connect(self.edit_profile)
+
+            self.wizard.setButton(QWizard.WizardButton.FinishButton, self.createButton)
+            self.wizard.button(self.wizard.BackButton).setEnabled(False)
+
+        def isComplete(self):
+            if not self.nameEdit.text().isprintable():
+                return False
+            if self.nameEdit.text().isspace():
+                return False
+            if self.nameEdit.text().__len__() == 0:
+                return False
+            if self.versionList.selectedItems().__len__() == 0:
+                return False
+            return True
+
+        def edit_profile(self):
+            profile: Profile = self.selProfPage.profile()
+            profile.name = self.nameEdit.text()
+
+            print(self.versionList.selectedItems())
+            profile.version = self.versionList.selected_version().versionID
+
+            util_panel: UtilitiesPanel = self.wizard.panel
+            man = util_panel.profileMan
+            man.save()
+            util_panel.reload_profiles()
+
+        def init(self):
+            profile = self.selProfPage.profile()
+            self.nameEdit.setText(profile.name)
+
+            self.versionList.load_versions()
+            i: int = 0
+            found: bool = False
+            for version in self.versionList.versions:
+                if version.versionID == profile.version:
+                    found = True
+                    break
+                i += 1
+
+            if found:
+                self.versionList.setItemSelected(self.versionList.item(i), True)
+
+            print(self.versionList.selectedItems())
+            self.completeChanged.emit()
+
+
+class ManageWizard(QWizard):
+    class ManageTypePage(QWizardPage):
+        def __init__(self, wizard: 'ManageWizard'):
+            super().__init__()
+
+            self.setTitle("Management Type")
+            self.setSubTitle("Select the option to Create, Modify or Delete a profile.")
+
+            self.createBtn = QCommandLinkButton("Create", "Add a new profile and download the version if it's not yet downloaded.")
+            self.modifyBtn = QCommandLinkButton("Modify", "Next option is to select a profile, then you can edit the name and other options.")
+            self.deleteBtn = QCommandLinkButton("Delete", "Delete a profile. Note: this deletes the profile permanently.")
+
+            self.createBtn.clicked.connect(self.on_create)
+            self.modifyBtn.clicked.connect(self.on_modify)
+            self.deleteBtn.clicked.connect(self.on_delete)
+
+            layout = QVBoxLayout()
+            layout.addSpacing(32)
+            layout.addWidget(self.createBtn)
+            layout.addWidget(self.modifyBtn)
+            layout.addWidget(self.deleteBtn)
+
+            self.setLayout(layout)
+
+            self.wizard = wizard
+            self.setButtonText(QWizard.WizardButton.FinishButton, "Click an option")
+
+        def on_create(self):
+            self.wizard.addPage(CreatePages.AddOptionsPage(self))
+            self.wizard.next()
+
+        def on_delete(self):
+            self.wizard.addPage(DeletePages.SelectProfilePage(self))
+            self.wizard.next()
+
+        def on_modify(self):
+            page1 = ModifyPages.SelectProfilePage(self)
+            page2 = page1.page2
+            self.wizard.addPage(page1)
+            self.wizard.addPage(page2)
+            self.wizard.next()
+
+        def isComplete(self) -> bool:
+            return False
+
+    def __init__(self, panel: 'UtilitiesPanel'):
+        super().__init__(panel.panel.main)
+
+        self.setWindowModality(Qt.WindowModality.WindowModal)
+
+        self.setWizardStyle(QWizard.WizardStyle.AeroStyle)
+        self.addPage(ManageWizard.ManageTypePage(self))
+
+        self.panel = panel
+
+    def helpRequested(self):
+        QMessageBox.information(self, "Help Information", "This dialog is used to manage profiles, you can create, edit or delete profiles here.")
+
+
+class UtilitiesPanel(QWidget):
+    def __init__(self, panel: 'BottomPanel'):
+        super().__init__(panel)
+
+        self.combo = QComboBox(self)
+        self.combo.setFixedWidth(160)
+
+        # self.combo.addItem("Profile 1")
+        # self.combo.addItem("Profile 2")
+        # self.combo.addItem("Profile 3")
+        # self.combo.addItem("Profile 4")
+
+        self.profileMan = ProfileManager()
+        self.profileMan.load()
+
+        self.reload_profiles()
+
+        self.manageBtn = QPushButton("Manage")
+        self.manageBtn.clicked.connect(self.manage)
+
+        # self.switch = QPushButton("Switch to edit mode")
+        # self.switch.clicked.connect(self.switch_edit_mode)
+
+        # self.versionChecker: VersionChecker = VersionChecker()
+        # self.versionChecker.download_version_list()
+        # self.versions: List[Version] = self.versionChecker.versions
+        layout = QVBoxLayout()
+        layout.addWidget(self.combo)
+        layout.addWidget(self.manageBtn)
+        # layout.addWidget(self.switch)
+        self.setLayout(layout)
+        self.panel = panel
+
+        self.manageWizard: Optional[ManageWizard] = None
+
+    def switch_edit_mode(self):
+        self.panel.main.switch_edit_mode()
+
+    def manage(self):
+        self.manageWizard = ManageWizard(self)
+        self.manageWizard.show()
+
+    def reload_profiles(self):
+        self.combo.clear()
+        for profile in self.profileMan.profiles:
+            self.combo.addItem(profile.name, profile)
+
+
+class Library:
+    def __init__(self, group: str, name: str, version: str, download: str):
+        self.group = group
+        self.name = name
+        self.version = version
+        self.download = download
+
+
+class VersionProfile:
+    def __init__(self, libraries: List[Library]):
+        self.libraries: List[Library] = libraries
+
+
+class VersionManager:
+    def __init__(self):
+        self.__versions: List[VersionProfile] = []
+        self.load()
+
+    # INSTANCE = __init__()
+
+    def load(self):
+        versionUrl = "https://ultreon.github.io/web/data/project/bubble-blaster/versions.json"
+        self.__versions = []
+
+
+class BottomPanel(QWidget):
+    def __init__(self, main_: 'Main'):
+        super().__init__(main_)
+
+        # self.versionManager = VersionManager.INSTANCE
+
+        self.left = UtilitiesPanel(self)
+
+        self.playBtn = QPushButton("PLAY", self)
+        self.playBtn.setFixedHeight(48)
+        self.playBtn.setFixedWidth(108)
+        self.playBtn.clicked.connect(self.play)
+
+        layout = QHBoxLayout()
+        layout.addWidget(self.left)
+        layout.addStretch(0x1)
+        layout.addWidget(self.playBtn)
+        layout.addStretch(0x1)
+
+        self.setLayout(layout)
+        self.main = main_
+
+    def play(self):
+        self.versionManager.get_version_data()
+
+
+class EditMode(QWidget):
+    def __init__(self, main_: 'Main'):
+        super().__init__(main_)
+
+        self.toolbar = QToolBar()
+        self.new = QToolButton()
+        self.toolbar.addWidget(self.new)
+
+        self.listView = QListWidget()
+        self.listView.setViewMode(QListWidget.ViewMode.IconMode)
+        self.listView.addItem(QListWidgetItem(QIcon("Icons/indev.png"), "Indev", self.listView))
+        self.listView.addItem(QListWidgetItem(QIcon("Icons/alpha.png"), "Alpha", self.listView))
+        self.listView.addItem(QListWidgetItem(QIcon("Icons/beta.png"), "Beta", self.listView))
+        self.listView.addItem(QListWidgetItem(QIcon("Icons/pre-release.png"), "Pre-Release", self.listView))
+        self.listView.addItem(QListWidgetItem(QIcon("Icons/release.png"), "Release", self.listView))
+        self.listView.addItem(QListWidgetItem(QIcon("Icons/unknown.png"), "Unknown", self.listView))
+
+        layout = QVBoxLayout()
+        layout.addWidget(self.toolbar)
+        layout.addWidget(self.listView)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        self.setLayout(layout)
+
+        self.main = main_
+
+
+class Main(QWidget):
+    def __init__(self):
+        super().__init__()
+
+        self.setWindowTitle("Bubble Blaster Launcher")
+        self.setMinimumSize(528, 550)
+        self.setBaseSize(1280, 720)
+        self.resize(1280, 720)
+
+        self.view = QWebEngineView(self)
+        self.view.setContentsMargins(0, 0, 0, 0)
+
+        # self.edit = EditMode(self)
+
+        self.bottom = BottomPanel(self)
+        self.bottom.sizePolicy().setHorizontalStretch(0x77)
+
+        layout = QVBoxLayout()
+        layout.addWidget(self.view, QVBoxLayout.SizeConstraint.SetMaximumSize)
+        # layout.addWidget(self.edit, QVBoxLayout.SizeConstraint.SetMaximumSize)
+        layout.addWidget(self.bottom)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        # self.edit.hide()
+
+        self.view.load(QUrl("https://ultreon.github.io/bubble-blaster/ChangeLog"))
+
+        self.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(layout)
+
+    def switch_edit_mode(self):
+        if self.view.isVisible():
+            self.view.hide()
+            self.edit.show()
+        else:
+            self.view.show()
+            self.edit.hide()
+
+
+# noinspection PyTypeChecker
+class Log(io.IOBase):
+    """
+    @author: Qboi123
+    @since: 0.0.5
+    @version: 1.4.3
+    @license: GNU General Public License v3.0
+    """
+
+    def __init__(self, file_, std, name="Out"):
+        """
+        @author: Qboi123
+        @param file_: log file.
+        @param std: system default output.
+        @param name: name of the logger.
+        @version: 1.0.0
+        """
+
+        self.file = file_
+        self.std = std
+        self.name = name
+        self.old = "\n"
+        self.fp = None
+        if not os.path.exists("Logs"):
+            os.makedirs("Logs")
+
+    def write(self, o: str):
+        """
+        @author: Qboi123
+        @version: 1.0.0
+        @param o:
+        @return:
+        """
+
+        if self.old[-1] == "\n":
+            self.std.write("[" + time.ctime(time.time()) + "] [" + self.name + "]: " + o)
+            self.fp = open(self.file, "a+")
+            self.fp.write("[" + time.ctime(time.time()) + "] [" + self.name + "]: " + o)
+            self.fp.close()
+        else:
+            self.std.write(o)
+            self.fp = open(self.file, "a+")
+            self.fp.write(o)
+            self.fp.close()
+        self.old = o
+
+    def writelines(self, lines: Iterable[Union[bytes, bytearray]]) -> None:
+        """
+        @author: Qboi123
+        @version: 1.0.0
+        @param lines:
+        @return:
+        """
+
+        for line in lines:
+            self.write(line)
+
+    # noinspection PyUnusedLocal,SpellCheckingInspection
+    def potato(self, exefile):
+        """
+        @author: Qboi123
+        @version: P.O.T.A.T.O
+        @license Creative Commons Zero (only the method / function)
+        @param exefile: nothing
+        @return: void
+        """
+
+        self.flush()
+
+    def flush(self):
+        """
+        @author: Qboi123
+        @version: 0.0.1
+        @return:
+        """
+
+        pass
+
+    def fileno(self):
+        """
+        @author: Qboi123
+        @version: 1.0.0
+        @return:
+        """
+
+        self.fp = open(self.file, "a+")
+        return self.fp.fileno()
+
+    def read(self):
+        """
+        @author: Qboi123
+        @version: 1.0.0
+        @return:
+        """
+
+        import time
+        a_ = self.std.read()
+        self.fp = open(self.file, "a+")
+        self.fp.write("[{time}] [In]: ".format(time=time.ctime(time.time())) + a_)
+        self.fp.close()
+
+
+def main():
+    app = QApplication()
+    app.setWindowIcon(QIcon(f"icon.png"))
+
+    main_ = Main()
+    main_.show()
+
+    sys.exit(QApplication.exec_())
+
+
 if __name__ == '__main__':
+    start_time = time.time()
+    start_ctime = time.ctime(start_time).replace(" ", "-").replace(":", ".")
+
+    if not os.path.exists("%s/Logs" % os.getcwd().replace("\\", "/")):
+        os.makedirs("%s/Logs" % os.getcwd().replace("\\", "/"))
+
+    if not os.path.exists("%s/Errors" % os.getcwd().replace("\\", "/")):
+        os.makedirs("%s/Errors" % os.getcwd().replace("\\", "/"))
+
+    log_file = time.strftime("%m-%d-%Y %H.%M.%S.log", time.gmtime(start_time))
+
+    stderr = Log(os.getcwd().replace("\\", "/") + "/Errors/" + log_file, sys.stderr, "Err")
+    stdout = Log(os.getcwd().replace("\\", "/") + "/Logs/" + log_file, sys.stdout)
+    # sys.stderr = stderr
+    # sys.stdout = stdout
+
     if hasattr(sys, "_MEIPASS"):
         # noinspection PyProtectedMember
         os.chdir(sys._MEIPASS)
 
     os.makedirs(os.path.join(DATA_FOLDER, "Logs/Launcher"), exist_ok=True)
     file = open(os.path.join(DATA_FOLDER, time.strftime("Logs/Launcher/Log %Y-%m-%d %H.%M.%S.log")), "w+")
-    # sys.stdout = file
-    # sys.stderr = file
-
-
-    # def func_0(code: int, exit__: Callable[[int], None]):
-    #     file.close()
-    #     exit__(code)
-    #
-    # exit_ = sys.exit
-    # import builtins
-    #
-    # # noinspection PyShadowingBuiltins
-    # def exit(code: int):
-    #     func_0(code, exit_)
-    # builtins.exit = lambda code: func_0(code, exit_)
-    # sys.exit = lambda code: func_0(code, exit_)
 
     try:
-        QLauncherWindow().mainloop()
+        # QLauncherWindow().mainloop()/
+        main()
     except Exception as e:
         traceback.print_exception(e.__class__, e, e.__traceback__, file=sys.stderr)
-    exit(0)

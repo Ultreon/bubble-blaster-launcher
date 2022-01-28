@@ -1,3 +1,18 @@
+#  Copyright (c) 2022.
+#
+#  This program is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 import os
 import shlex
 import shutil
@@ -13,6 +28,11 @@ class CompilerError(BaseException):
 
 # noinspection PyUnusedClass
 class Compiler(object):
+    """
+    @author: Qboi123
+    @version: 2.0.0
+    """
+
     def __init__(self, exclude: MutableSequence[str], icon: Optional[str], main_folder: str, main_file: str,
                  hidden_imports: MutableSequence[str], dlls: MutableSequence[str] = None, one_file=False,
                  hide_console=False, fix_recursion_limit=True, upx_dir: str = None, log_level: str = "INFO",
@@ -20,51 +40,56 @@ class Compiler(object):
                  import_paths: MutableSequence[str] = None, add_hooks_dirs: MutableSequence[str] = None,
                  runtime_hooks: MutableSequence[str] = None, exclude_modules: MutableSequence[str] = None,
                  key: str = None, debug: str = None, no_unicode=False, clean=False, apply_symbol_table=False,
-                 no_upx=False, version_file: str = None, manifest_file: str = None, uac_admin=False, uac_uiaccess=False,
-                 win_private_assemblies=False, win_no_prefer_redirects=False, osx_bundle_indentifier: str = None,
+                 no_upx=False, version_file: str = None, manifest_file: str = None, require_admin=False,
+                 enable_remote=False,
+                 win_private_assemblies=False, win_no_prefer_redirects=False, osx_bundle_identifier: str = None,
                  runtime_tmpdir: str = "", bootloader_ignore_signals=False, *additional_args):
         """
         Compiler class, compiling python workspace.
-        :param exclude:
-        :param icon:
-        :param main_folder:
-        :param main_file:
-        :param hidden_imports:
-        :param dlls:
-        :param one_file:
-        :param hide_console:
-        :param fix_recursion_limit:
-        :param upx_dir:
-        :param log_level:
-        :param app_name:
-        :param extra_binaries:
-        :param import_paths:
-        :param add_hooks_dirs:
-        :param runtime_hooks:
-        :param exclude_modules:
-        :param key:
-        :param debug:
-        :param no_unicode:
-        :param clean:
-        :param apply_symbol_table:
-        :param no_upx:
-        :param version_file:
-        :param manifest_file:
-        :param uac_admin:
-        :param uac_uiaccess:
-        :param win_private_assemblies:
-        :param win_no_prefer_redirects:
-        :param osx_bundle_indentifier:
-        :param runtime_tmpdir:
-        :param bootloader_ignore_signals:
-        :param additional_args:
+        @param exclude: files to exclude in the build.
+        @param icon: icon for the exe.
+        @param main_folder: the main source code folder.
+        @param main_file: the main file.
+        @param hidden_imports: hidden imports to include.
+        @param dlls: DLL files to include.
+        @param one_file: enable one-file mode.
+        @param hide_console: hide console when running exe.
+        @param fix_recursion_limit: fix the recursion limit.
+        @param upx_dir: UPX directory.
+        @param log_level: the log level.
+        @param app_name: the app's name.
+        @param extra_binaries: extra binaries to include.
+        @param import_paths: ???
+        @param add_hooks_dirs: ???
+        @param runtime_hooks: ???
+        @param exclude_modules: exclude some modules.
+        @param key:
+        @param debug: enable debugging mode.
+        @param no_unicode:
+        @param clean: clean build.
+        @param apply_symbol_table:
+        @param no_upx: disable UPX.
+        @param version_file: path to exe version file.
+        @param manifest_file: path to exe manifest.
+        @param require_admin: let built exe require UAC Administrator to run.
+        @param enable_remote:
+        @param win_private_assemblies:
+        @param win_no_prefer_redirects:
+        @param osx_bundle_identifier:
+        @param runtime_tmpdir: runtime temp directory. %userprofile%\\AppData\\local\\Temp for Windows.
+        @param bootloader_ignore_signals:
+        @param additional_args: additional arguments.
         """
         if hidden_imports is None:
             hidden_imports = list()
 
         exclude.append("obj")
+        exclude.append("build")
+        exclude.append("bin")
         exclude.append(".gitignore")
         exclude.append(".gitattributes")
+        exclude.append(".git")
+        exclude.append(".idea")
 
         # One File
         self.oneFile = one_file
@@ -80,6 +105,7 @@ class Compiler(object):
         self.exclude = exclude
         self.icon = icon
         self.allFiles = []
+        self.rootFiles = []
 
         # General Options
         self.upxDirectory = upx_dir
@@ -105,15 +131,15 @@ class Compiler(object):
         # Windows specific options
         self.versionFile = version_file
         self.manifestFile = manifest_file
-        self.requestElevation = uac_admin
-        self.remoteDesktop = uac_uiaccess
+        self.requireAdmin = require_admin
+        self.enableRemoteControl = enable_remote
 
         # Windows Side-by-side Assembly searching options
         self.privateAssemblies = win_private_assemblies
         self.noPreferRedirects = win_no_prefer_redirects
 
         # Mac OS X specific options
-        self.osxBundleIndentifier = osx_bundle_indentifier
+        self.osxBundleIdentifier = osx_bundle_identifier
 
         # Rarely used special options
         self.runtimeTempDir = runtime_tmpdir
@@ -165,38 +191,48 @@ class Compiler(object):
         from PyInstaller import __main__ as pyi
         # auto_py2exe.__main__.temporary_directory = self.join_path(self.mainFolder, "obj")
 
-        temporary_directory = self.join_path(self.mainFolder, "obj")
-        output = self.join_path(os.path.normpath(os.path.join(__file__, "..")), "bin")
+        build_dir = self.join_path(self.mainFolder, "../build")
+        # output = self.join_path(os.path.normpath(os.path.join(self.mainFolder, "..")), "build/exe")
+
+        os.makedirs(build_dir, exist_ok=True)
+
         # Notify the user of the workspace and setup building to it
-        print("Building in the current instances temporary directory at {}".format(temporary_directory))
+        print(f"Started build of the source code at {self.mainFolder}")
+        print(f"Building in the current instances temporary directory at {build_dir}")
         print("To get a new temporary directory, restart this application")
-        dist_path = os.path.join(temporary_directory, 'application')
-        build_path = os.path.join(temporary_directory, 'build')
-        extra_args = ['--distpath', dist_path] + ['--workpath', build_path] + ['--specpath', temporary_directory]
+        dist_path = os.path.join(build_dir, 'dist')
+        build_path = os.path.join(build_dir, 'build')
+        spec_path = os.path.join(build_dir, 'spec')
+
+        for file in self.rootFiles:
+            shutil.copy(file, spec_path)
+
+        extra_args = ['--distpath', dist_path] + ['--workpath', build_path] + ['--specpath', spec_path]
 
         # Run PyInstaller
-        py_installer_fail = True
+        failed: bool
         sys.argv = shlex.split(command) + extra_args  # Put command into sys.argv and extra args
         try:
-            print("Executing: {0}".format(command))
+            print(f"Executing: {command}")
             pyi.run()  # Execute PyInstaller
-            py_installer_fail = False
-        except:
+            failed = False
+        except Exception as e:
             print("An error occurred, traceback follows:", file=sys.stderr)
-            print(traceback.format_exc(), file=sys.stderr)
+            traceback.print_exception(e.__class__, e, e.__traceback__)
+            failed = True
 
         # Move project if there was no failure
-        if py_installer_fail:
-            print("", file=sys.stderr)
-            print("Project output will not be moved to output folder", file=sys.stderr)
+        if failed:
+            print("Compiling failed, check log for more information.", file=sys.stderr)
         else:
-            output_directory = os.path.abspath(output)  # Use absolute directories
-            print("Moving project to: {0}".format(output_directory))
-            try:
-                self.move_project(dist_path, output_directory)
-            except:
-                print("Failed to move project, traceback follows:", file=sys.stderr)
-                print(traceback.format_exc())
+            print("Successfully built project.")
+            # output_directory = os.path.abspath(output)  # Use absolute directories
+            # print("Moving project to: {0}".format(output_directory))
+            # try:
+            #     self.move_project(dist_path, output_directory)
+            # except:
+            #     print("Failed to move project, traceback follows:", file=sys.stderr)
+            #     print(traceback.format_exc())
 
         print("Complete.")
 
@@ -237,22 +273,23 @@ class Compiler(object):
 
     def _reindex_relpath(self, folder):
         """
-        Reindex's the relative path to <folder>
-        :param folder:
-        :return:
+        Reindex the relative path to <folder>
+        @param folder:
+        @return:
         """
         for export_path in os.listdir(self.join_path(self.mainFolder, folder)):
             export_path = self.join_path(folder, export_path)
             path = self.join_path(self.mainFolder, export_path)
             if export_path in self.exclude:
                 continue
-            if export_path not in ["bin", "obj", "__pycache__", self.mainFile]:
+            if export_path not in ["bin", "obj", "__pycache__", self.mainFile] and not export_path.endswith(
+                    "__pycache__"):
                 if os.path.split(export_path)[-1] not in ["__pycache__"]:
                     if os.path.isfile(path):
-                        print("Indexed File: (%s, %s)" % (path, os.path.join(*os.path.split(export_path)[:-1])))
-                        self.allFiles.append((path, os.path.join(*os.path.split(export_path)[:-1])))
+                        # print("Indexed File: (%s, %s)" % (path, os.path.join(*os.path.split(export_path)[:-1])))
+                        self.allFiles.append((export_path, os.path.join(*os.path.split(export_path)[:-1])))
                     if os.path.isdir(path):
-                        print("Indexed Folder: %s" % export_path)
+                        # print("Indexed Folder: %s" % export_path)
                         self._reindex_relpath(export_path)
 
     def reindex(self):
@@ -264,14 +301,17 @@ class Compiler(object):
         for export_path in self.mainContents:
             path = self.join_path(self.mainFolder, export_path)
             if export_path in self.exclude:
+                print(export_path)
                 continue
-            if export_path not in ["bin", "obj", "__pycache__", self.mainFile]:
+            if export_path not in ["bin", "obj", "__pycache__", self.mainFile] and not export_path.endswith(
+                    "__pycache__"):
                 if os.path.isfile(path):
-                    print("Indexed File: (%s, %s)" % (path, "."))
-                    self.allFiles.append((path, "."))
+                    # print("Indexed File: (%s, %s)" % (path, "."))
+                    self.allFiles.append((export_path, "."))
                 if os.path.isdir(path):
-                    print("Indexed Folder: %s" % export_path)
+                    # print("Indexed Folder: %s" % export_path)
                     self._reindex_relpath(export_path)
+                self.rootFiles.append(path)
 
     def get_args(self) -> list:
         """
@@ -285,10 +325,10 @@ class Compiler(object):
             args.append("-w")
         if self.icon:
             args.append("-i \"%s\"" % self.join_path(self.mainFolder, self.icon))
-        print("All Files: %s" % self.allFiles)
+        # print("All Files: %s" % self.allFiles)
         for file_location, exported_location in self.allFiles:
             args.append("--add-data \"%s\";\"%s\"" % (file_location.replace("\\", "/"), exported_location))
-            print("--add-data \"%s\";\"%s\"" % (file_location.replace("\\", "/"), exported_location))
+            # print("--add-data \"%s\";\"%s\"" % (file_location.replace("\\", "/"), exported_location))
         if self.dllFiles:
             for file in self.dllFiles:
                 args.append("--add-data \"%s\";\".\"" % self.join_path(self.mainFolder, file.replace("\\", "/")))
@@ -332,16 +372,16 @@ class Compiler(object):
             args.append("--version-file \"%s\"" % self.versionFile)
         if self.manifestFile:
             args.append("-m \"%s\"" % self.manifestFile)
-        if self.requestElevation:
+        if self.requireAdmin:
             args.append("--uac-admin")
-        if self.remoteDesktop:
+        if self.enableRemoteControl:
             args.append("--uac-uiaccess")
         if self.privateAssemblies:
             args.append("--win-private-assemblies")
         if self.noPreferRedirects:
             args.append("--win-no-prefer-redirects")
-        if self.osxBundleIndentifier:
-            args.append("--osx-bundle-identifier \"%s\"" % self.osxBundleIndentifier)
+        if self.osxBundleIdentifier:
+            args.append("--osx-bundle-identifier \"%s\"" % self.osxBundleIdentifier)
         if self.runtimeTempDir:
             args.append("--runtime-tmpdir \"%s\"" % self.runtimeTempDir)
         if self.bootloaderIgnoreSignals:
