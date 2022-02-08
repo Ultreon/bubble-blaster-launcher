@@ -46,3 +46,10 @@ projects.register(Project("installer", exclude=[
     "os", "tkinter", "tkinter.tix", "_tkinter", "_tkinter.tix", "tkinter.filedialog", "_io",
     "pkg_resources.py2_warn", "wx._core"
 ], hide_console=not debug, one_file=True, exe_name="Bubble Blaster Installer"))
+projects.register(Project("legacy_launcher", exclude=[
+    ".idea", ".gitattributes", ".gitignore", "build.py", "README.md", "obj", ".git", "compiler.py",
+    "requirements.txt"
+], hidden_imports=[
+    "os", "tkinter", "tkinter.tix", "_tkinter", "_tkinter.tix", "tkinter.filedialog", "_io",
+    "pkg_resources.py2_warn", "wx._core"
+], hide_console=not debug, one_file=False, exe_name="Bubble Blaster Launcher"))

@@ -20,6 +20,8 @@
 /*/build/
 /*/src/build/
 
+/venv/
+
 *.log
 
 ChangeLog.html

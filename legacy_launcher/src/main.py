@@ -19,6 +19,22 @@
 #  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+#  This program is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+from __future__ import annotations
+
+import getpass
 import io
 import json
 import os
@@ -35,9 +51,10 @@ from random import randint
 from tarfile import TarFile
 from threading import Thread
 from tkinter import Tk, Frame, Canvas, ttk, Label, PhotoImage
-from typing import Optional, Dict, List, Union, Any, Callable, BinaryIO
+from typing import Optional, Dict, List, Union, Any, Callable, BinaryIO, Iterable
 from zipfile import ZipFile
-import getpass
+
+from PIL import Image, ImageTk, ImageDraw, ImageFont
 
 os.getlogin = lambda: getpass.getuser()
 
@@ -48,19 +65,10 @@ if hasattr(sys, "_MEIPASS"):
 try:
     # noinspection PyUnresolvedReferences
     import win32api
+    # noinspection PyUnresolvedReferences
     import pywintypes
-
-    # print(win32api.GetUserNameEx(0))
-    # print(win32api.GetUserNameEx(1))
-    # print(win32api.GetUserNameEx(2))
-    # print(win32api.GetUserNameEx(3))
-    # print(win32api.GetUserNameEx(4))
-    # print(win32api.GetUserName())
-
-    # os.getlogin = lambda: win32api.GetUserName()
 except ImportError as e:
     pass
-from PIL import Image, ImageTk, ImageDraw, ImageFont
 
 DATA_FOLDER = None
 
@@ -197,13 +205,13 @@ class Downloader:
         self.done = True
 
     # noinspection PyGlobalUndefined
-    def _download_temp(self, httpIO: BinaryIO):
+    def _download_temp(self, http_io: BinaryIO):
         import tempfile
         global active
         with tempfile.TemporaryFile("ba+") as f:
             # print(f.file)
             while True:
-                block = httpIO.read(1024)
+                block = http_io.read(1024)
                 # data_blocks.append(block)
                 self.downloaded += len(block)
                 _hash = ((60 * self.downloaded) // self.totalSize)
@@ -559,6 +567,7 @@ class SDK:
     _URL = "https://github.com/Ultreon/bubble-blaster/raw/main/sdks.json"
     __INSTANCES: Dict[str, Dict[str, 'SDK']] = None
 
+    # noinspection PyPep8Naming
     def __init__(self, type_: str, versionId: str, executablePath: str, download: Dict[str, str], version: str,
                  date: str, innerPath: str, **data):
         self.executable_path = executablePath
@@ -1104,7 +1113,7 @@ class QLauncherWindow(Tk):
 
     def on_bottompanel_configure(self, evt):
         """
-        Update playbutton when resizing the window, this event is called from the bottom panel.
+        Update play button when resizing the window, this event is called from the bottom panel.
 
         :param evt:
         :return:
@@ -1137,7 +1146,7 @@ class QLauncherWindow(Tk):
 
     def download_event(self, x):
         """
-        Download event, used to update the playbutton text to show how far with downloading.
+        Download event, used to update the play button text to show how far with downloading.
 
         :param x:
         :return:
@@ -1151,7 +1160,7 @@ class QLauncherWindow(Tk):
 
     def play(self, runtime: Runtime):
         """
-        Runs the game version. (Or in other words: Open an process for the game version)
+        Runs the game version. (Or in other words: Open a process for the game version)
 
         :return:
         """
@@ -1272,7 +1281,7 @@ class QLauncherWindow(Tk):
         # Closes previous opened image
         # self._backgroundImage.close()
 
-        # Open image and resize it
+        # Open and resize the image.
         # self._backgroundImage: PIL.Image.Image = PIL.Image.open("background.png")
         # self._backgroundImage = get_resized_img(self._backgroundImage, (evt.width, evt.height))
 
@@ -1428,7 +1437,7 @@ class QLauncherWindow(Tk):
 
 
 # noinspection PyTypeChecker
-class Log(io.IOBase):
+class Log(io.StringIO):
     """
     @author: Qboi123
     @since: 0.0.5
@@ -1436,22 +1445,23 @@ class Log(io.IOBase):
     @license: GNU General Public License v3.0
     """
 
-    def __init__(self, file, std, name="Out"):
+    def __init__(self, file_, std, name="Out"):
         """
         @author: Qboi123
-        @param file: log file.
+        @param file_: log file.
         @param std: system default output.
         @param name: name of the logger.
         @version: 1.0.0
         """
 
-        self.file = file
+        super().__init__()
+        self.file = file_
         self.std = std
-        self.name = name
+        self.name_ = name
         self.old = "\n"
         self.fp = None
-        if not os.path.exists("logs"):
-            os.makedirs("logs")
+        if not os.path.exists("Logs"):
+            os.makedirs("Logs")
 
     def write(self, o: str):
         """
@@ -1462,9 +1472,9 @@ class Log(io.IOBase):
         """
 
         if self.old[-1] == "\n":
-            self.std.write("[" + time.ctime(time.time()) + "] [" + self.name + "]: " + o)
+            self.std.write("[" + time.ctime(time.time()) + "] [" + self.name_ + "]: " + o)
             self.fp = open(self.file, "a+")
-            self.fp.write("[" + time.ctime(time.time()) + "] [" + self.name + "]: " + o)
+            self.fp.write("[" + time.ctime(time.time()) + "] [" + self.name_ + "]: " + o)
             self.fp.close()
         else:
             self.std.write(o)
@@ -1515,7 +1525,7 @@ class Log(io.IOBase):
         self.fp = open(self.file, "a+")
         return self.fp.fileno()
 
-    def read(self):
+    def read(self, __size: int | None = 1) -> str:
         """
         @author: Qboi123
         @version: 1.0.0
@@ -1523,7 +1533,7 @@ class Log(io.IOBase):
         """
 
         import time
-        a_ = self.std.read()
+        a_ = self.std.read(__size)
         self.fp = open(self.file, "a+")
         self.fp.write("[{time}] [In]: ".format(time=time.ctime(time.time())) + a_)
         self.fp.close()
@@ -1557,4 +1567,4 @@ if __name__ == '__main__':
         QLauncherWindow().mainloop()
     except Exception as e:
         traceback.print_exception(e.__class__, e, e.__traceback__, file=sys.stderr)
-    exit(0)
+    sys.exit(0)

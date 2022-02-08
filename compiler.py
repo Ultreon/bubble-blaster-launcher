@@ -205,7 +205,11 @@ class Compiler(object):
         spec_path = os.path.join(build_dir, 'spec')
 
         for file in self.rootFiles:
-            shutil.copy(file, spec_path)
+            if os.path.isdir(file):
+                shutil.copytree(file, os.path.join(spec_path, os.path.split(file)[-1]), dirs_exist_ok=True)
+            elif os.path.isfile(file):
+                shutil.copy(file, os.path.join(spec_path))
+
 
         extra_args = ['--distpath', dist_path] + ['--workpath', build_path] + ['--specpath', spec_path]
 

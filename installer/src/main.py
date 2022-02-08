@@ -21,11 +21,12 @@ from enum import Enum
 from threading import Thread
 from typing import Optional
 
-from PySide2.QtCore import QDir, QUrl
+from PySide2.QtCore import QDir
 from PySide2.QtGui import QPixmap, QIcon, QCloseEvent
 from PySide2.QtWidgets import QApplication, QWizard, QWizardPage, QLabel, QVBoxLayout, QWidget, \
     QComboBox, QHBoxLayout, QPushButton, QFileDialog, QFileSystemModel, QProgressBar, QRadioButton, QTextBrowser, \
     QCheckBox, QMessageBox
+from PySide2.QtWinExtras import QtWin
 from qt_thread_updater import get_updater
 
 WIN32_APP_ID = u"UltreonTeam.BubbleBlaster.Installer.1.0.0.0"
@@ -70,7 +71,7 @@ class InstallationType(Enum):
 INSTALLATION_DIR = DATA_FOLDER.replace("/", os.path.sep)
 PRODUCT_NAME = "Bubble Blaster Launcher"
 INSTALLATION_TYPE = InstallationType.ONLY_FOR_ME
-DOWNLOAD_URL: str = "https://www.google.com"
+DOWNLOAD_URL: str = "https://ultreon.github.io/bubble-blaster-launcher/data/downloads/Updater.exe"
 
 VIEW_README = False
 LAUNCH_APP = True
@@ -78,6 +79,9 @@ LAUNCH_APP = True
 TEMP_DIR = "%s/Temporary" % os.getcwd().replace("\\", "/")
 
 WIZARD_STYLE_OVERRIDE: Optional[QWizard.WizardStyle] = None  # QWizard.WizardStyle.ModernStyle
+
+WIN32_START_MENU = r"C:\Users\quint\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Ultreon Team"
+WIN32_START_MENU_ITEM = rf"{WIN32_START_MENU}\Bubble Blaster Launcher"
 
 
 # noinspection PyUnboundLocalVariable,PyArgumentList
@@ -177,24 +181,19 @@ class Downloader:
         data_blocks = []
         total = 0
 
-        while True:
-            block = u.read(self._blockSize)
-            data_blocks.append(block)
-            self.downloadedSize += len(block)
-            _hash = ((60 * self.downloadedSize) // self.fileSize)
-            if not len(block):
-                active = False
-                break
+        with open(self._fp, "ab+") as f:
+            while True:
+                block = u.read(self._blockSize)
+                data_blocks.append(block)
+                self.downloadedSize += len(block)
+                _hash = ((60 * self.downloadedSize) // self.fileSize)
+                if not len(block):
+                    active = False
+                    break
 
-            try:
-                with open(self._fp, "ab+") as f:
-                    f.write(block)
-                    f.close()
-            except FileNotFoundError:
-                os.makedirs("%s/Temporary/" % os.getcwd().replace("\\", "/"))
-                with open(self._fp, "ab+") as f:
-                    f.write(block)
-                    f.close()
+                f.write(block)
+            f.flush()
+            f.close()
 
         # data = b''.join(data_blocks)
         u.close()
@@ -436,8 +435,9 @@ class VerifyReadyPage(QWizardPage):
             wiz.closeEvent = self.on_close
         p = wiz.currentPage()
         if isinstance(p, DownloadPage):
-            pag: InstallPage = wiz.page(install_page)
-            pag.init(p.file)
+            pass
+            # pag: InstallPage = wiz.page(install_page)
+            # pag.init(p.file)
         if isinstance(wiz.currentPage(), ExitPage):
             pag: ExitPage = wiz.page(exit_page)
             pag.run(self.runFile)
@@ -486,17 +486,9 @@ class DownloadPage(QWizardPage):
         return self.downloader.downloaded
 
     def init(self):
-        import random
-
-        cwd = os.getcwd().replace("\\", "/")
-
-        value = random.randint(0x100000000000, 0xffffffffffff)
-        filepath = hex(value)[2:] + ".tmp"
-
-        if not os.path.exists(TEMP_DIR):
-            os.makedirs(TEMP_DIR)
-
-        dl_path = f"{cwd}/Temporary/{filepath}"
+        if not os.path.exists(DATA_FOLDER):
+            os.makedirs(DATA_FOLDER)
+        dl_path = f"{DATA_FOLDER}/Updater.exe"
 
         self.file = dl_path
 
@@ -512,104 +504,10 @@ class DownloadPage(QWizardPage):
             dl_size = self.downloader.fileSize
             ratio = cur_size / dl_size
 
-            # self._mutex.lock()
             get_updater().call_latest(self.progress.setMaximum, 10000)
             get_updater().call_latest(self.progress.setValue, int(10000 * ratio))
-            get_updater().call_latest(self.status.setText,
-                                      f"Downloaded {file_size(cur_size)} of {file_size(dl_size)}. {round(100 * ratio, 1)}")
-            # self._mutex.unlock()
-        print("Downloaded A")
+            get_updater().call_latest(self.status.setText, f"Downloaded {file_size(cur_size)} of {file_size(dl_size)}.")
         get_updater().call_latest(self.completeChanged.emit)
-
-
-class InstallPage(QWizardPage):
-    """
-    @license: GNU General Public License v3.0
-    @author: Qboi123
-    @version: 0.1.0
-    """
-
-    def __init__(self, parent: QWizard) -> None:
-        super().__init__(parent)
-
-        self.setTitle(f"Installing {PRODUCT_NAME}")
-
-        self.label = QLabel(f"Please wait while the Setup Wizard installs {PRODUCT_NAME}. This may take several minutes.")
-        self.label.setWordWrap(True)
-
-        self.status = QLabel("Status:")
-        self.status.setContentsMargins(0, 16, 0, 0)
-
-        self.progress = QProgressBar(self)
-        self.progress.setMaximum(100)
-        self.progress.setValue(36)
-        self.progress.setMaximumHeight(16)
-
-        self.setFinalPage(False)
-        self.setCommitPage(True)
-
-        layout = QVBoxLayout()
-        layout.addWidget(self.label)
-        layout.addWidget(self.status)
-        layout.addWidget(self.progress)
-        self.setLayout(layout)
-
-    def init(self, archive: str):
-        Thread(target=lambda: self.extract(archive), name="Extraction").start()
-
-    def extract(self, archive: str):
-        import zipfile
-        import shutil
-
-        # Prepare vars
-        cwd = os.getcwd()
-        src = archive
-        dst = "%s/Launcher" % os.getcwd().replace("\\", "/")
-        extract_dir = "BubbleBlasterLauncher-"
-
-        print("[Extractor]: IS_BUBBLE_BLASTER_FOLDER -> ", extract_dir == "BubbleBlasterLauncher-")
-        print("[Extractor]: EXTRACTION_FOLDER -> ", extract_dir)
-
-        get_updater().call_latest(self.status.setText, "Extracting...")
-        zip_file = zipfile.ZipFile(src)
-
-        # Remove old launcher directory and contents.
-        get_updater().call_latest(self.status.setText, "Status: removing old launcher...")
-        shutil.rmtree(f'{cwd}/Launcher', ignore_errors=True)
-
-        path = os.fspath(f"{cwd}/Temporary/{extract_dir}")
-        members = zip_file.namelist()
-
-        # Extract all files of the zip file.
-        member_count = members.__len__()
-        get_updater().call_latest(self.progress.setMaximum, member_count)
-        extracted = 0
-        for member in members:
-            # Update extraction progress
-            get_updater().call_latest(self.progress.setValue, extracted)
-            get_updater().call_latest(self.status.setText, f"Status: extracting {member}")
-
-            # Extract one member.
-            zip_file.extract(member, path, None)
-            extracted += 1
-
-        zip_file.close()
-
-        os.remove(archive)
-
-        # Move extracted data to the launcher installation folder.
-        get_updater().call_latest(self.status.setText, "Status: moving extracted data to launcher installation.")
-        shutil.move(f"{cwd}/Temporary/{extract_dir}", dst)
-
-        get_updater().call_latest(self.progress.setValue, member_count)
-
-        # Show error if launcher installation folder doesn't exist.
-        if not os.path.exists(dst):
-            get_updater().call_latest(lambda: self.crash(dst))
-
-    def crash(self, dst: str):
-        QMessageBox.critical(self, "Extraction Error", f"Destination path doesn't exists:\n{dst}")
-        sys.exit(1)
 
 
 class ExitPage(QWizardPage):
@@ -695,6 +593,9 @@ if __name__ == '__main__':
 
 
     wizard: QWizard = QWizard()
+
+    QtWin.setCompositionEnabled(True)
+    QtWin.proenableBlurBehindWindow(wizard)
     wizard.DisabledBackButtonOnLastPage = True
     wizard.NoBackButtonOnStartPage = False
     # noinspection PyUnboundLocalVariable
@@ -713,7 +614,7 @@ if __name__ == '__main__':
     wizard.addPage(FolderPage(wizard))
     wizard.addPage(VerifyReadyPage(wizard))
     download_page = wizard.addPage(DownloadPage(wizard))
-    install_page = wizard.addPage(InstallPage(wizard))
+    # install_page = wizard.addPage(InstallPage(wizard))
     exit_page = last_page = wizard.addPage(ExitPage(wizard))
     wizard.setWindowTitle("QBubbles Installation")
     # wizard.helpRequested = help
