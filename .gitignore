@@ -23,5 +23,6 @@
 /venv/
 
 *.log
+*.tmp
 
 ChangeLog.html
