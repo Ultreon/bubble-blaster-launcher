@@ -38,7 +38,14 @@ from PySide2.QtWidgets import QWizardPage, QLabel, QProgressBar, QVBoxLayout, QW
     QMessageBox
 from qt_thread_updater import get_updater
 
-WIN32_APP_ID = u"UltreonTeam.BubbleBlaster.Installer.1.0.0.0"
+# noinspection PyBroadException
+try:
+    import getpass
+    os.getlogin = lambda: getpass.getuser()
+except Exception:
+    pass
+
+WIN32_APP_ID = u"UltreonTeam.BubbleBlaster.Updater.1.0.1.0"
 
 # noinspection PyBroadException
 try:
@@ -243,18 +250,19 @@ def file_size(size: int):
 class Downloader:
     """
     @since 1.0.0
-    @version 1.0.1
+    @version 1.1.0
     @author Qboi123
     """
 
     def __init__(self, url, fp):
         """
         @author: Qboi123
-        @version: 1.0.0
+        @version: 1.1.0
         @param url: url to download.
         @param fp: filepath to save the download to.
         """
 
+        self.downloading = False
         self._blockSize = 65536
         from threading import Thread
         self._url = url
@@ -271,7 +279,7 @@ class Downloader:
         Start the download.
 
         @author: Qboi123
-        @version: 1.0.0
+        @version: 1.1.0
         @return:
         """
 
@@ -304,29 +312,27 @@ class Downloader:
         data_blocks = []
         total = 0
 
-        while True:
-            block = u.read(self._blockSize)
-            data_blocks.append(block)
-            self.downloadedSize += len(block)
-            _hash = ((60 * self.downloadedSize) // self.fileSize)
-            if not len(block):
-                active = False
-                break
+        self.downloading = True
 
-            try:
-                with open(self._fp, "ab+") as f:
-                    f.write(block)
-                    f.close()
-            except FileNotFoundError:
-                os.makedirs("%s/Temporary/" % os.getcwd().replace("\\", "/"))
-                with open(self._fp, "ab+") as f:
-                    f.write(block)
-                    f.close()
+        with open(self._fp, "ab+") as f:
+            while True:
+                block = u.read(self._blockSize)
+                data_blocks.append(block)
+                self.downloadedSize += len(block)
+                _hash = ((60 * self.downloadedSize) // self.fileSize)
+                if not len(block):
+                    active = False
+                    break
+
+                f.write(block)
+            f.flush()
+            f.close()
 
         # data = b''.join(data_blocks)
         u.close()
 
         self.downloaded = True
+        self.downloading = False
 
 
 # noinspection PyTypeChecker
@@ -602,8 +608,12 @@ class DownloadPage(QWizardPage):
             # self._mutex.lock()
             get_updater().call_latest(self.progress.setMaximum, 10000)
             get_updater().call_latest(self.progress.setValue, int(10000 * ratio))
-            get_updater().call_latest(self.status.setText,
-                                      f"Downloaded {file_size(cur_size)} of {file_size(dl_size)}.")
+            if self.downloader.downloaded:
+                get_updater().call_latest(self.status.setText, f"Download complete.")
+            elif self.downloader.downloading:
+                get_updater().call_latest(self.status.setText, f"Downloaded {file_size(cur_size)} of {file_size(dl_size)}.")
+            else:
+                get_updater().call_latest(self.status.setText, f"Preparing download..")
             # self._mutex.unlock()
         get_updater().call_latest(self.completeChanged.emit)
 
@@ -645,6 +655,10 @@ class InstallPage(QWizardPage):
         self.__r = r
         self.__st = st
         self.__stb = stb
+        self.complete = False
+
+    def isComplete(self) -> bool:
+        return self.complete
 
     def init(self, archive: str):
         Thread(target=lambda: self.extract(archive), name="Extraction").start()
@@ -703,6 +717,9 @@ class InstallPage(QWizardPage):
                 file.write(self.update_xml)
                 file.flush()
                 file.close()
+        self.complete = True
+        get_updater().call_latest(self.status.setText, "Status: done.")
+        get_updater().call_latest(self.completeChanged.emit)
 
     def crash(self, dst: str):
         QMessageBox.critical(self, "Extraction Error", f"Destination path doesn't exists:\n{dst}")
