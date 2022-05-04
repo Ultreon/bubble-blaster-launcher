@@ -17,6 +17,6 @@
   -->
 
 <Launcher>
-    <Update time="1644349218" version="1" subversion="0" release="0" state="beta" statebuild="1.1" url="https://github.com/Ultreon/bubble-blaster-launcher/releases/download/1.0.0-beta1.1/Bubble.Blaster.Launcher.zip"/>
+    <Update time="1651661412" version="1" subversion="0" release="0" state="beta" statebuild="2" url="https://github.com/Ultreon/bubble-blaster-launcher/releases/download/1.0.0-beta2/Bubble.Blaster.Launcher.zip"/>
     <RunFile>Bubble Blaster Launcher.exe</RunFile>
 </Launcher>
