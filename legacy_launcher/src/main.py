@@ -34,7 +34,6 @@
 #  (at your option) any later version.
 from __future__ import annotations
 
-import getpass
 import io
 import json
 import os
@@ -56,7 +55,12 @@ from zipfile import ZipFile
 
 from PIL import Image, ImageTk, ImageDraw, ImageFont
 
-os.getlogin = lambda: getpass.getuser()
+# noinspection PyBroadException
+try:
+    import getpass
+    os.getlogin = lambda: getpass.getuser()
+except Exception:
+    pass
 
 if hasattr(sys, "_MEIPASS"):
     # noinspection PyProtectedMember
