@@ -1,10 +1,10 @@
-Pillow==9.0.1
+Pillow==9.1.0
 PyYAML==6.0
 future==0.18.2
-pywin32==303
+pywin32==304
 wxPython==4.1.1
-pyinstaller==4.9
+pyinstaller==5.0.1
 pypiwin32~=223
-click~=8.0.3
+click==8.1.3
 PySide2~=5.15.2.1
-PySide6~=6.2.2.1
+PySide6==6.3.0

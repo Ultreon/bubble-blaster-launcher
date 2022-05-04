@@ -189,7 +189,7 @@ class Downloader:
                 while True:
                     # Reading a block size of 1024.
                     # Todo: make block size customizable.
-                    block: bytes = http_io.read(1024)
+                    block: bytes = http_io.read(8192)
                     self.downloaded += len(block)
                     if not len(block):
                         active = False
@@ -659,10 +659,10 @@ class SDK:
             ext = ".zip"
         else:
             print("Invalid download url, file type not supported: " + re.compile(
-                r"(?:[a-zA-Z0-9_\-+=\[%\\ .,:;'\"\]]+/)*[a-zA-Z0-9_\-+=\[%\\ ,:;'\"\]]+((?:.[a-zA-Z0-9]*)+)"
+                r"(?:[a-zA-Z\d_\-+=\[%\\ .,:;'\"\]]+/)*[a-zA-Z\d_\-+=\[%\\ ,:;'\"\]]+((?:.[a-zA-Z\d]*)+)"
             ).match(url).group(1), file=sys.stderr)
             return "Invalid download url, file type not supported: " + re.compile(
-                r"(?:[a-zA-Z0-9_\-+=\[%\\ .,:;'\"\]]+/)*[a-zA-Z0-9_\-+=\[%\\ ,:;'\"\]]+((?:.[a-zA-Z0-9]*)+)"
+                r"(?:[a-zA-Z\d_\-+=\[%\\ .,:;'\"\]]+/)*[a-zA-Z\d_\-+=\[%\\ ,:;'\"\]]+((?:.[a-zA-Z\d]*)+)"
             ).match(url).group(1)
 
         file_name = os.path.join(temp_folder, f"{uuid.uuid3(uuid.NAMESPACE_X500, url)}{ext}")
@@ -721,7 +721,7 @@ class SDK:
 
 class Runtime:
     # noinspection PyShadowingBuiltins
-    def __init__(self, *, type: str, version: Union[str, int], **data):
+    def __init__(self, *, type: str, version: Union[str, int], librariesUrl: str = None, **data):
         self.sdk = SDK.load_or_get(type, str(version))
         self.type: str = type
         self.version: Union[str, int] = version
@@ -731,7 +731,7 @@ class Runtime:
 
 class Version(object):
     def __init__(self, version_id, name, stable: bool, preRelease: bool, release: bool, runtime: dict, buildDate: str,
-                 download: str, args: List[str], **data):
+                 download: str, args: List[str], librariesUrl: str = None, **data):
         self.versionID = version_id
         self.name = name
         self.stable = stable
@@ -742,6 +742,31 @@ class Version(object):
         self.download = download
         self.args = args
         self.data = data
+        self.libraryLinks: List[str] = list()
+        self.librariesUrl = librariesUrl
+
+    def get_library_links(self):
+        if len(self.libraryLinks) > 0:
+            return self.libraryLinks
+
+        import urllib.request
+        import urllib.error
+        import http.client
+
+        if self.librariesUrl is not None:
+            url: str = self.librariesUrl
+
+            print("Downloading Version Database...")
+
+            req: http.client.HTTPResponse = urllib.request.urlopen(url)
+
+            lib_db: List[str] = json.load(req)
+            self.libraryLinks = lib_db
+            return lib_db
+        else:
+            print("No libs")
+
+        return list()
 
 
 class VersionChecker(object):
@@ -860,13 +885,6 @@ class QLauncherWindow(Tk):
         print("Setup UI...")
 
         # Initialize Icons for the modloader and Minecraft
-        # self.iconRift = PhotoImage(file="Icons/rift.png")
-        # self.iconForge = PhotoImage(file="Icons/forge.png")
-        # self.iconFabric = PhotoImage(file="Icons/fabric.png")
-        # self.iconClassic = PhotoImage(file="Icons/classic.png")
-        # self.iconOptifine = PhotoImage(file="Icons/optifine.png")
-        # self.iconMinecraft = PhotoImage(file="Icons/minecraft.png")
-
         self.iconIndev = PhotoImage(file="Icons/indev.png")
         self.iconAlpha = PhotoImage(file="Icons/alpha.png")
         self.iconBeta = PhotoImage(file="Icons/beta.png")
@@ -875,12 +893,7 @@ class QLauncherWindow(Tk):
         self.iconUnknown = PhotoImage(file="Icons/unknown.png")
 
         # Initialize colors for the modloader and Minecraft
-        # self.colorRift = "#D7D7D7"
-        # self.colorForge = "#3E5482"
-        # self.colorFabric = "#BFB49C"
         self.colorClassic = "#7A7A7A"
-        # self.colorOptifine = "#AD393B"
-        # self.colorMinecraft = "#A8744F"
 
         # self._backgroundImage: PIL.Image.Image = PIL.Image.open("background.png")
         # self._tmp_img_tk = PIL.ImageTk.PhotoImage(self._backgroundImage)
@@ -911,11 +924,11 @@ class QLauncherWindow(Tk):
         self.sPanel = Frame(self.leftPanel, height=self.rootFrame.winfo_height() - 100, width=vlw)
         self.sPanel.pack(side="left", fill="y")
 
-        # Scrollwindow for the slots frame
+        # Scroll window for the slots frame
         self.sw = ScrolledWindow(self.sPanel, vlw, self.winfo_height() + 0, expand=True, fill="both",
                                  scrollbarbg="#666666", scrollbarfg="#888888")
 
-        # Configure the canvas from the scrollwindow
+        # Configure the canvas from the scroll-window
         self.canv = self.sw.canv
         self.canv.config(bg="#1e1e1e")
         self.sw.vbar.config(bg="#1e1e1e", fg="#353535")
@@ -1014,7 +1027,7 @@ class QLauncherWindow(Tk):
 
         # Event bindings
         # self.canvas.bind("<Configure>", self.configure_event)
-        self.bottomPanel.bind("<Configure>", self.on_bottompanel_configure)
+        self.bottomPanel.bind("<Configure>", self.on_bottom_panel_configure)
 
         self.wm_attributes("-fullscreen", self.launcherConfig["fullscreen"])
 
@@ -1111,7 +1124,7 @@ class QLauncherWindow(Tk):
         self.selVersion = version
         self.play(runtime=version.runtime)
 
-    def on_bottompanel_configure(self, evt):
+    def on_bottom_panel_configure(self, evt):
         """
         Update play button when resizing the window, this event is called from the bottom panel.
 
@@ -1176,6 +1189,37 @@ class QLauncherWindow(Tk):
         if not os.path.exists(os.path.join(DATA_FOLDER, runtime.path)):
             sdk.download(self.label, self.update)
 
+        libs_dir = os.path.join(DATA_FOLDER, f"Versions/{self.selVersion.versionID}/libs")
+
+        os.makedirs(libs_dir, exist_ok=True)
+
+        lib_files = []
+
+        self.label.configure(text="Downloading libraries.")
+        links = len(self.selVersion.get_library_links())
+
+        print("Downloading libraries")
+        print(self.selVersion.get_library_links())
+
+        i = 1
+        for link in self.selVersion.get_library_links():
+            lib_file = link.split("/")[-1]
+            abs_lib_file = os.path.join(libs_dir, lib_file)
+
+            lib_files.append(abs_lib_file)
+
+            if os.path.exists(abs_lib_file):
+                i += 1
+                continue
+
+            download = Downloader(link, abs_lib_file)
+
+            while not download.done:
+                self.label.configure(
+                    text=f"Downloading lib ({lib_file}, {i} / {links})... ({int(100 * download.downloaded / download.totalSize)}%)")
+                self.update()
+            i += 1
+
         print("Preparing Game Jar")
         self.label.configure(text="Preparing Game Jar")
         jar_file = os.path.join(DATA_FOLDER, f"Versions/{self.selVersion.versionID}/{self.selVersion.versionID}.jar")
@@ -1196,8 +1240,14 @@ class QLauncherWindow(Tk):
         print("Running game from Java")
         self.label.configure(text="Running game from Java")
         # win32api.ShellExecute()
-        subprocess.Popen([java_executable, "-jar", jar_file, f"gameDir={game_dir}"],
-                         stdout=sys.stdout, stderr=sys.stderr)
+        if len(lib_files) > 0:
+            classpath = str.join(os.pathsep, lib_files + [jar_file])
+            # print(classpath)
+            subprocess.Popen([java_executable, "-cp", classpath, "com.ultreon.preloader.PreGameLoader", f"gameDir={game_dir}"],
+                             stdout=sys.stdout, stderr=sys.stderr)
+        else:
+            subprocess.Popen([java_executable, "-jar", jar_file, f"gameDir={game_dir}"],
+                             stdout=sys.stdout, stderr=sys.stderr)
         # command = shlex.join(["cmd", "/c", "start", java_executable, "-jar", jar_file, f"gameDir={game_dir}"])
         # var = os.spawnl(os.P_DETACH, java_executable, "-jar", jar_file, f"gameDir={game_dir}")
         return True
@@ -1539,6 +1589,18 @@ class Log(io.StringIO):
         self.fp.close()
 
 
+def custom_except_hook(func):
+    def wrap(type_, value, tb):
+        func(type_, value, tb)
+        crash_file = time.strftime("%m-%d-%Y %H.%M.%S.log", time.gmtime(time.time()))
+        os.makedirs("Crash-Reports")
+        with open(os.path.join("Crash-Reports", crash_file), "w+") as file_:
+            traceback.print_exception(type_, value, tb, file=file_)
+            file_.flush()
+
+    return wrap
+
+
 if __name__ == '__main__':
     start_time = time.time()
     start_ctime = time.ctime(start_time).replace(" ", "-").replace(":", ".")
@@ -1553,6 +1615,9 @@ if __name__ == '__main__':
 
     stderr = Log(os.getcwd().replace("\\", "/") + "/Errors/" + log_file, sys.stderr, "Err")
     stdout = Log(os.getcwd().replace("\\", "/") + "/Logs/" + log_file, sys.stdout)
+
+    sys.excepthook = custom_except_hook(sys.excepthook)
+
     sys.stderr = stderr
     sys.stdout = stdout
 
@@ -1567,4 +1632,9 @@ if __name__ == '__main__':
         QLauncherWindow().mainloop()
     except Exception as e:
         traceback.print_exception(e.__class__, e, e.__traceback__, file=sys.stderr)
+        crash_file = time.strftime("%m-%d-%Y %H.%M.%S.log", time.gmtime(time.time()))
+        os.makedirs("Crash-Reports")
+        with open(os.path.join("Crash-Reports", crash_file), "w+") as file_:
+            traceback.print_exception(e.__class__, e, e.__traceback__, file=file_)
+            file_.flush()
     sys.exit(0)

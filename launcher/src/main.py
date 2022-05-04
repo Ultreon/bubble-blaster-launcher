@@ -418,13 +418,14 @@ class Runtime:
 class Version(object):
     # noinspection PyPep8Naming
     def __init__(self, version_id, name, stable: bool, preRelease: bool, release: bool, runtime: dict, buildDate: str,
-                 download: str, args: List[str], **data):
+                 download: str, args: List[str], librariesUrl = None, **data):
         self.versionID = version_id
         self.name = name
         self.stable = stable
         self.preRelease = preRelease
         self.release = release
         self.runtime = Runtime(**runtime)
+        self.librariesUrl = librariesUrl
         self.buildDate = buildDate
         self.download = download
         self.args = args
@@ -1501,7 +1502,7 @@ class VersionManager:
         self.__versions: List[VersionProfile] = []
         self.load()
 
-    # INSTANCE = __init__()
+    INSTANCE = __init__()
 
     def load(self):
         versionUrl = "https://ultreon.github.io/web/data/project/bubble-blaster/versions.json"
@@ -1512,7 +1513,7 @@ class BottomPanel(QWidget):
     def __init__(self, main_: 'Main'):
         super().__init__(main_)
 
-        # self.versionManager = VersionManager.INSTANCE
+        self.versionManager = VersionManager.INSTANCE
 
         self.left = UtilitiesPanel(self)
 
@@ -1531,7 +1532,7 @@ class BottomPanel(QWidget):
         self.main = main_
 
     def play(self):
-        self.versionManager.get_version_data()
+        self.left.versionManager.get_version_data()
 
 
 class EditMode(QWidget):
